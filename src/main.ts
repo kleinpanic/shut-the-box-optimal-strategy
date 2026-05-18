@@ -235,7 +235,7 @@ function tileGrid(): string {
     return `
       <button data-tile="${t}" ${extra}
         style="aspect-ratio:1;border-radius:10px;border:2px solid ${border};background:${bg};color:${color};
-               font-size:clamp(18px,3vw,26px);font-weight:800;cursor:pointer;
+               min-width:0;width:100%;font-size:clamp(18px,3vw,26px);font-weight:800;cursor:pointer;
                transition:all 0.15s;display:flex;align-items:center;justify-content:center;
                ${isOpen ? 'transform:scale(1)' : ''}">
         ${content}
@@ -253,7 +253,7 @@ function tileGrid(): string {
         ${isShut ? '<div style="padding:4px 12px;background:#064e3b;border:1px solid #10b981;border-radius:20px;color:#34d399;font-size:12px;font-weight:700">🎉 BOX SHUT!</div>' : ''}
         ${isStuck ? '<div style="padding:4px 12px;background:#450a0a;border:1px solid #dc2626;border-radius:20px;color:#fca5a5;font-size:12px;font-weight:700">❌ No Valid Moves</div>' : ''}
       </div>
-      <div style="display:grid;grid-template-columns:repeat(9,1fr);gap:6px">
+      <div style="display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:6px">
         ${tiles}
       </div>
       ${optimalMask !== 0 ? '<p style="font-size:11px;color:#34d399;text-align:center;margin-top:10px;margin-bottom:0;opacity:0.8">Glowing tiles = optimal move</p>' : ''}
