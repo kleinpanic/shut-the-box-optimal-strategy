@@ -47,8 +47,7 @@
       sans-serif;
     background:
       linear-gradient(180deg, rgba(122, 78, 45, 0.12), transparent 260px),
-      radial-gradient(ellipse at top, rgba(255, 255, 255, 0.65), transparent 58%),
-      var(--bg);
+      radial-gradient(ellipse at top, rgba(255, 255, 255, 0.65), transparent 58%), var(--bg);
     color: var(--ink);
     -webkit-font-smoothing: antialiased;
     text-rendering: geometricPrecision;
@@ -423,8 +422,7 @@
   padding: clamp(14px, 1.7vw, 20px);
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.12), transparent 36%),
-    radial-gradient(ellipse at center, rgba(31, 115, 87, 0.42), transparent 72%),
-    var(--felt-dark);
+    radial-gradient(ellipse at center, rgba(31, 115, 87, 0.42), transparent 72%), var(--felt-dark);
   color: white;
 }
 
@@ -471,8 +469,7 @@
 }
 
 .tile-button.is-open {
-  background:
-    linear-gradient(180deg, #fffaf0, #e9d8b7);
+  background: linear-gradient(180deg, #fffaf0, #e9d8b7);
   border-color: rgba(255, 255, 255, 0.86);
   color: #281a0d;
   box-shadow:
@@ -732,7 +729,10 @@ input[type='number'] {
 
 .analysis-strip {
   display: grid;
-  grid-template-columns: minmax(250px, 1.15fr) minmax(220px, 0.9fr) minmax(280px, 1.15fr) minmax(220px, 0.8fr);
+  grid-template-columns: minmax(250px, 1.15fr) minmax(220px, 0.9fr) minmax(280px, 1.15fr) minmax(
+      220px,
+      0.8fr
+    );
   gap: 12px;
   align-items: stretch;
 }
