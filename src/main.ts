@@ -109,20 +109,23 @@ function buildApp(): string {
     '<div class="app-shell">',
     topBar(),
     '<main class="app-layout">',
-    '<section class="play-column" aria-label="Game board and move advisor">',
+    workflowPanel(ranked),
+    '<section class="strategy-stage" aria-label="Optimal move workspace">',
+    '<div class="board-stack">',
     gameSummary(ranked),
     tileBoard(ranked),
-    '<div class="play-grid">',
     dicePanel(),
+    '</div>',
+    '<div class="action-stack">',
     advisorPanel(ranked),
     '</div>',
     '</section>',
-    '<aside class="side-column" aria-label="Strategy controls and analysis">',
+    '<section class="analysis-strip" aria-label="Strategy controls and analysis">',
     controlsPanel(),
     metricsPanel(),
     probabilityPanel(),
     rulesPanel(),
-    '</aside>',
+    '</section>',
     '</main>',
     '</div>',
   ].join('');
@@ -133,8 +136,8 @@ function topBar(): string {
   const rulesMode = state.useOneDie ? 'One-die rule on' : 'Two dice only';
   return [
     '<header class="top-bar">',
-    '<div class="brand-mark" aria-hidden="true"><span>9</span></div>',
-    '<div class="brand-copy"><h1>Shut the Box</h1><p>Optimal strategy table</p></div>',
+    '<div class="brand-mark" aria-hidden="true"><span>STB</span></div>',
+    '<div class="brand-copy"><h1>Shut the Box</h1><p>Optimal strategy app</p></div>',
     '<div class="top-actions">',
     '<div class="score-pill ' +
       scoreTone(score) +
@@ -148,12 +151,69 @@ function topBar(): string {
   ].join('');
 }
 
+function workflowPanel(ranked: RankedMove[]): string {
+  const steps = [
+    {
+      label: 'Set board',
+      value: openTiles().length + ' open',
+      state: state.gameState === 0 ? 'done' : 'active',
+    },
+    {
+      label: 'Choose roll',
+      value: state.roll === null ? diceRange().min + '-' + diceRange().max : String(state.roll),
+      state: state.roll === null ? 'active' : 'done',
+    },
+    {
+      label: 'Best move',
+      value:
+        state.gameState === 0
+          ? 'shut'
+          : state.roll === null
+            ? 'waiting'
+            : ranked[0]
+              ? moveLabel(ranked[0])
+              : 'none',
+      state: ranked[0] ? 'active' : state.gameState === 0 ? 'done' : 'idle',
+    },
+    {
+      label: 'Apply',
+      value: ranked[0] ? 'ready' : state.gameState === 0 ? 'done' : 'pending',
+      state: ranked[0] ? 'active' : 'idle',
+    },
+  ];
+
+  return (
+    '<section class="workflow-panel" aria-label="Play workflow">' +
+    steps
+      .map(
+        (step, index) =>
+          '<div class="workflow-step is-' +
+          step.state +
+          '"><span>' +
+          (index + 1) +
+          '</span><div><strong>' +
+          step.label +
+          '</strong><small>' +
+          step.value +
+          '</small></div></div>',
+      )
+      .join('') +
+    '</section>'
+  );
+}
+
 function gameSummary(ranked: RankedMove[]): string {
   const score = tileValue(state.gameState);
   const open = openTiles();
   const best = ranked[0];
   const status =
-    state.gameState === 0 ? 'Box shut' : best ? 'Close ' + moveLabel(best) : 'Set dice total';
+    state.gameState === 0
+      ? 'Box shut'
+      : state.roll === null
+        ? 'Choose a dice total'
+        : best
+          ? 'Close ' + moveLabel(best)
+          : 'No legal move';
   const openLabel = open.length === 0 ? 'No tiles remain open.' : 'Open tiles: ' + open.join(', ');
 
   return [
@@ -241,7 +301,11 @@ function dicePanel(): string {
     '<div class="section-heading tight"><div><span class="eyebrow">Dice</span><h2>' +
       modeLabel +
       ' total</h2></div>',
-    '<button id="random-roll-btn" class="button button-primary" type="button">Roll</button></div>',
+    '<div class="panel-actions"><button id="random-roll-btn" class="button button-primary" type="button">Roll</button>' +
+      (state.roll !== null
+        ? '<button id="clear-roll-btn" class="button button-quiet" type="button">Clear</button>'
+        : '') +
+      '</div></div>',
     '<label class="number-field"><span>Total</span><input id="dice-input" type="number" min="' +
       range.min +
       '" max="' +
@@ -254,12 +318,7 @@ function dicePanel(): string {
       range.max +
       '" /></label>',
     '<div class="roll-grid">' + chips + '</div>',
-    '<div class="dice-footer">' +
-      diceVisual() +
-      (state.roll !== null
-        ? '<button id="clear-roll-btn" class="button button-quiet" type="button">Clear</button>'
-        : '') +
-      '</div>',
+    '<div class="dice-footer">' + diceVisual() + '</div>',
     '</section>',
   ].join('');
 }
@@ -311,8 +370,10 @@ function advisorPanel(ranked: RankedMove[]): string {
   if (state.roll === null) {
     return [
       '<section class="panel advisor-panel" aria-label="Move advisor">',
-      '<span class="eyebrow">Move advisor</span><h2>Awaiting dice</h2>',
-      '<p class="muted">Objective: ' + objectiveMeta[state.objective].shortLabel + '.</p>',
+      '<span class="eyebrow">Move advisor</span><h2>Pick a dice total</h2>',
+      '<p class="muted">Objective: ' +
+        objectiveMeta[state.objective].shortLabel +
+        '. Legal moves rank as soon as a total is selected.</p>',
       '</section>',
     ].join('');
   }
@@ -344,7 +405,9 @@ function advisorPanel(ranked: RankedMove[]): string {
       moveExplanation(best) +
       '</p></div></div>',
     alternatives
-      ? '<div class="move-table" aria-label="Alternative moves">' + alternatives + '</div>'
+      ? '<div class="move-table" aria-label="Alternative moves"><div class="table-caption">Compare alternatives</div>' +
+        alternatives +
+        '</div>'
       : '<p class="muted compact">Only one legal move for this roll.</p>',
     '</section>',
   ].join('');
@@ -374,6 +437,7 @@ function moveRow(rankedMove: RankedMove, index: number): string {
     '<span class="move-rank">' + (index + 2) + '</span>',
     '<span>Close ' + moveLabel(rankedMove) + '</span>',
     '<strong>' + rankedMove.explanation + '</strong>',
+    '<em>Apply</em>',
     '</button>',
   ].join('');
 }
