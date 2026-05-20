@@ -8,16 +8,18 @@ interface AppState {
   roll: number | null;
   objective: Objective;
   diceMode: DiceMode;
+  helpMode: HelpMode;
   page: AppPage;
 }
 
-type Snapshot = Pick<AppState, 'gameState' | 'roll' | 'objective' | 'diceMode'>;
+type Snapshot = Pick<AppState, 'gameState' | 'roll' | 'objective' | 'diceMode' | 'helpMode'>;
 
 const FULL_STATE = 0x1ff;
 const HIGH_TILES_MASK = 0x1c0;
 const STORAGE_KEY = 'shut-the-box-optimal-strategy:state:v1';
 type AppPage = 'play' | 'guide' | 'math';
 type DiceMode = 'auto' | 'two' | 'one';
+type HelpMode = 'guided' | 'compact';
 const PAGE_PATHS: Record<AppPage, string> = {
   play: '/',
   guide: '/how-to-use',
@@ -32,6 +34,7 @@ const state: AppState = {
   roll: null,
   objective: 'minimize_score',
   diceMode: 'auto',
+  helpMode: 'guided',
   ...savedState,
   page: currentPage(),
 };
@@ -128,6 +131,7 @@ function snapshotState(): Snapshot {
     roll: state.roll,
     objective: state.objective,
     diceMode: state.diceMode,
+    helpMode: state.helpMode,
   };
 }
 
@@ -136,6 +140,7 @@ function restoreSnapshot(snapshot: Snapshot): void {
   state.roll = snapshot.roll;
   state.objective = snapshot.objective;
   state.diceMode = snapshot.diceMode;
+  state.helpMode = snapshot.helpMode;
 }
 
 function isValidSnapshot(value: unknown): value is Snapshot {
@@ -149,7 +154,8 @@ function isValidSnapshot(value: unknown): value is Snapshot {
     ['minimize_score', 'maximize_shutting', 'maximize_survival'].includes(
       String(candidate.objective),
     ) &&
-    ['auto', 'two', 'one'].includes(String(candidate.diceMode))
+    ['auto', 'two', 'one'].includes(String(candidate.diceMode)) &&
+    (candidate.helpMode === undefined || ['guided', 'compact'].includes(String(candidate.helpMode)))
   );
 }
 
@@ -158,7 +164,8 @@ function loadSavedState(): Snapshot | null {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as unknown;
-    return isValidSnapshot(parsed) ? parsed : null;
+    if (!isValidSnapshot(parsed)) return null;
+    return { ...parsed, helpMode: parsed.helpMode ?? 'guided' };
   } catch {
     return null;
   }
@@ -252,8 +259,8 @@ function pageBody(ranked: RankedMove[]): string {
 
 function playPage(ranked: RankedMove[]): string {
   return [
-    '<main class="app-layout">',
-    playPrimer(),
+    '<main class="app-layout ' + (state.helpMode === 'compact' ? 'is-compact' : 'is-guided') + '">',
+    state.helpMode === 'guided' ? playPrimer() : compactPrimer(),
     workflowPanel(ranked),
     noticePanel(),
     '<section class="strategy-stage" aria-label="Optimal move workspace">',
@@ -296,9 +303,22 @@ function topBar(): string {
       score +
       '</strong></div>',
     '<div class="mode-pill">' + rulesMode + '</div>',
+    '<button id="help-mode-btn" class="button button-quiet" type="button" title="Toggle between guided help and compact returning-player mode.">' +
+      (state.helpMode === 'guided' ? 'Compact' : 'Guidance') +
+      '</button>',
     '<button id="reset-btn" class="button button-quiet" type="button" title="Reset the board to all tiles open and clear the roll.">New game</button>',
     '</div>',
     '</header>',
+  ].join('');
+}
+
+function compactPrimer(): string {
+  return [
+    '<section class="compact-bar" aria-label="Compact play controls">',
+    '<strong>Board first.</strong>',
+    '<span>Match tiles, enter roll, apply highlighted move.</span>',
+    '<button id="restore-guidance-btn" class="button button-quiet" type="button">Show help</button>',
+    '</section>',
   ].join('');
 }
 
@@ -401,11 +421,15 @@ function workflowPanel(ranked: RankedMove[]): string {
   ];
 
   return (
-    '<section class="workflow-panel" aria-label="Guided turn mode"><div class="workflow-focus"><span class="eyebrow">Guided turn mode</span><h2>Next step: ' +
-    focus.title +
-    '</h2><p>' +
-    focus.body +
-    '</p></div><div class="workflow-steps">' +
+    '<section class="workflow-panel" aria-label="Guided turn mode">' +
+    (state.helpMode === 'guided'
+      ? '<div class="workflow-focus"><span class="eyebrow">Guided turn mode</span><h2>Next step: ' +
+        focus.title +
+        '</h2><p>' +
+        focus.body +
+        '</p></div>'
+      : '') +
+    '<div class="workflow-steps">' +
     steps
       .map(
         (step, index) =>
@@ -737,7 +761,7 @@ function moveWhyPanel(best: RankedMove, nextBest?: RankedMove): string {
       '.'
     : 'There is no second legal move for this roll.';
   return [
-    '<details class="why-panel" open>',
+    '<details class="why-panel"' + (state.helpMode === 'guided' ? ' open' : '') + '>',
     '<summary>Why this move?</summary>',
     '<p>Close ' +
       moveLabel(best) +
@@ -1111,6 +1135,9 @@ function attach(): void {
     render();
   });
 
+  document.getElementById('help-mode-btn')?.addEventListener('click', toggleHelpMode);
+  document.getElementById('restore-guidance-btn')?.addEventListener('click', toggleHelpMode);
+
   document.querySelectorAll<HTMLButtonElement>('[data-objective]').forEach((button) => {
     button.addEventListener('click', () => {
       const label = objectiveMeta[button.dataset.objective as Objective].shortLabel;
@@ -1204,6 +1231,16 @@ function attach(): void {
   document.getElementById('redo-btn')?.addEventListener('click', redo);
 
   document.onkeydown = handleShortcut;
+}
+
+function toggleHelpMode(): void {
+  state.helpMode = state.helpMode === 'guided' ? 'compact' : 'guided';
+  lastNotice =
+    state.helpMode === 'compact'
+      ? 'Compact mode on. Big help blocks are hidden.'
+      : 'Guidance restored. Help blocks are visible.';
+  saveState();
+  render();
 }
 
 function handleShortcut(event: KeyboardEvent): void {

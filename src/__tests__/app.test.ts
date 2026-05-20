@@ -62,6 +62,30 @@ describe('strategy app shell', () => {
     expect(document.querySelector('[data-page="play"]')?.getAttribute('aria-current')).toBe('page');
   });
 
+  it('toggles and persists compact returning-player mode', async () => {
+    let app = await loadApp();
+
+    click('#help-mode-btn');
+
+    expect(app.textContent).toContain('Compact mode on');
+    expect(app.textContent).toContain('Board first.');
+    expect(app.textContent).toContain('Show help');
+    expect(app.textContent).not.toContain('Use it like a sidecar scorekeeper');
+    expect(document.querySelector('.app-layout')?.className).toContain('is-compact');
+    expect(document.querySelector('.play-primer')).toBeNull();
+
+    click('[data-roll="7"]');
+    expect(document.querySelector('.why-panel')?.hasAttribute('open')).toBe(false);
+
+    app = await loadApp();
+    expect(app.textContent).toContain('Board first.');
+    expect(app.textContent).not.toContain('Use it like a sidecar scorekeeper');
+
+    click('#restore-guidance-btn');
+    expect(app.textContent).toContain('Guidance restored');
+    expect(app.textContent).toContain('Use it like a sidecar scorekeeper');
+  });
+
   it('ranks moves after a roll and applies the best move', async () => {
     const app = await loadApp();
 

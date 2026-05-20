@@ -267,6 +267,10 @@
   gap: 8px;
 }
 
+.app-layout.is-compact .workflow-panel {
+  grid-template-columns: 1fr;
+}
+
 .workflow-focus {
   min-height: 88px;
   padding: 14px 15px;
@@ -363,6 +367,28 @@
   box-shadow: var(--tight-shadow);
   font-size: 0.9rem;
   font-weight: 850;
+}
+
+.compact-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid rgba(52, 211, 153, 0.24);
+  border-radius: 8px;
+  background: rgba(18, 26, 34, 0.82);
+  box-shadow: var(--tight-shadow);
+}
+
+.compact-bar strong {
+  color: #a7f3d0;
+}
+
+.compact-bar span {
+  color: var(--muted);
+  font-weight: 760;
 }
 
 .strategy-stage {
@@ -497,6 +523,10 @@
   font-size: 0.82rem;
   font-weight: 750;
   line-height: 1.35;
+}
+
+.app-layout.is-compact .line-help {
+  display: none;
 }
 
 .line-help.inverted {
@@ -804,6 +834,20 @@ input[type='number'] {
 .why-panel p {
   margin: 7px 0 0;
   line-height: 1.45;
+}
+
+.app-layout.is-compact .why-panel {
+  padding-block: 9px;
+}
+
+.app-layout.is-compact .objective-option small,
+.app-layout.is-compact .dice-mode-option small {
+  display: none;
+}
+
+.app-layout.is-compact .objective-option,
+.app-layout.is-compact .dice-mode-option {
+  min-height: 44px;
 }
 
 .table-caption {
