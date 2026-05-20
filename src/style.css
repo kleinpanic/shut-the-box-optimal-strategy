@@ -231,6 +231,7 @@
 .objective-option:focus-visible,
 .move-row:focus-visible,
 .nav-tab:focus-visible,
+.view-mode-option:focus-visible,
 .help-tag:focus-visible,
 .number-field input:focus-visible {
   outline: 3px solid rgba(40, 104, 168, 0.26);
@@ -259,6 +260,49 @@
   width: min(1280px, 100%);
   margin: 0 auto;
   padding: 14px clamp(12px, 2vw, 26px) 24px;
+}
+
+.view-mode-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  border-radius: 8px;
+  background: rgba(18, 26, 34, 0.86);
+  box-shadow: var(--tight-shadow);
+}
+
+.view-mode-switch strong {
+  display: block;
+  margin-top: 2px;
+}
+
+.view-mode-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(130px, 1fr));
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(237, 245, 239, 0.06);
+}
+
+.view-mode-option {
+  min-height: 36px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 950;
+}
+
+.view-mode-option.is-active {
+  background: rgba(52, 211, 153, 0.18);
+  color: #a7f3d0;
 }
 
 .workflow-panel {
@@ -389,6 +433,10 @@
 .compact-bar span {
   color: var(--muted);
   font-weight: 760;
+}
+
+.app-layout.is-compact .summary-panel {
+  display: none;
 }
 
 .strategy-stage {
@@ -1788,6 +1836,7 @@ input[type='number'] {
 
   .workflow-panel,
   .workflow-steps,
+  .view-mode-actions,
   .analysis-strip,
   .summary-panel,
   .guide-grid,
@@ -1799,6 +1848,10 @@ input[type='number'] {
 
   .workflow-panel {
     gap: 6px;
+  }
+
+  .view-mode-switch {
+    align-items: stretch;
   }
 
   .workflow-step {

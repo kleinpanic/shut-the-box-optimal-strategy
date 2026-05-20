@@ -260,12 +260,13 @@ function pageBody(ranked: RankedMove[]): string {
 function playPage(ranked: RankedMove[]): string {
   return [
     '<main class="app-layout ' + (state.helpMode === 'compact' ? 'is-compact' : 'is-guided') + '">',
+    viewModeSwitch(),
     state.helpMode === 'guided' ? playPrimer() : compactPrimer(),
-    workflowPanel(ranked),
+    state.helpMode === 'guided' ? workflowPanel(ranked) : '',
     noticePanel(),
     '<section class="strategy-stage" aria-label="Optimal move workspace">',
     '<div class="board-stack">',
-    gameSummary(ranked),
+    state.helpMode === 'guided' ? gameSummary(ranked) : '',
     tileBoard(ranked),
     dicePanel(),
     '</div>',
@@ -273,14 +274,48 @@ function playPage(ranked: RankedMove[]): string {
     advisorPanel(ranked),
     '</div>',
     '</section>',
-    '<section class="analysis-strip" aria-label="Strategy controls and analysis">',
-    controlsPanel(),
-    metricsPanel(),
-    probabilityPanel(),
-    rulesPanel(),
-    '</section>',
+    state.helpMode === 'guided'
+      ? '<section class="analysis-strip" aria-label="Strategy controls and analysis">' +
+        controlsPanel() +
+        metricsPanel() +
+        probabilityPanel() +
+        rulesPanel() +
+        '</section>'
+      : '',
     '</main>',
   ].join('');
+}
+
+function viewModeSwitch(): string {
+  return [
+    '<section class="view-mode-switch" aria-label="Display mode">',
+    '<div><span class="eyebrow">View</span><strong>' +
+      (state.helpMode === 'guided' ? 'Full help' : 'Compact board') +
+      '</strong></div>',
+    '<div class="view-mode-actions" role="group" aria-label="Choose display mode">',
+    viewModeButton('guided', 'Full help', 'Show walkthrough, stepper, explanations, and analysis.'),
+    viewModeButton(
+      'compact',
+      'Compact board',
+      'Hide tutorial sections and keep the play surface first.',
+    ),
+    '</div>',
+    '</section>',
+  ].join('');
+}
+
+function viewModeButton(mode: HelpMode, label: string, title: string): string {
+  return (
+    '<button class="view-mode-option' +
+    (state.helpMode === mode ? ' is-active' : '') +
+    '" type="button" data-help-mode="' +
+    mode +
+    '" title="' +
+    title +
+    '">' +
+    label +
+    '</button>'
+  );
 }
 
 function noticePanel(): string {
@@ -304,7 +339,7 @@ function topBar(): string {
       '</strong></div>',
     '<div class="mode-pill">' + rulesMode + '</div>',
     '<button id="help-mode-btn" class="button button-quiet" type="button" title="Toggle between guided help and compact returning-player mode.">' +
-      (state.helpMode === 'guided' ? 'Compact' : 'Guidance') +
+      (state.helpMode === 'guided' ? 'Hide help' : 'Show help') +
       '</button>',
     '<button id="reset-btn" class="button button-quiet" type="button" title="Reset the board to all tiles open and clear the roll.">New game</button>',
     '</div>',
@@ -1137,6 +1172,11 @@ function attach(): void {
 
   document.getElementById('help-mode-btn')?.addEventListener('click', toggleHelpMode);
   document.getElementById('restore-guidance-btn')?.addEventListener('click', toggleHelpMode);
+  document.querySelectorAll<HTMLButtonElement>('[data-help-mode]').forEach((button) => {
+    button.addEventListener('click', () => {
+      setHelpMode(button.dataset.helpMode as HelpMode);
+    });
+  });
 
   document.querySelectorAll<HTMLButtonElement>('[data-objective]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -1234,7 +1274,11 @@ function attach(): void {
 }
 
 function toggleHelpMode(): void {
-  state.helpMode = state.helpMode === 'guided' ? 'compact' : 'guided';
+  setHelpMode(state.helpMode === 'guided' ? 'compact' : 'guided');
+}
+
+function setHelpMode(mode: HelpMode): void {
+  state.helpMode = mode;
   lastNotice =
     state.helpMode === 'compact'
       ? 'Compact mode on. Big help blocks are hidden.'

@@ -49,6 +49,8 @@ describe('strategy app shell', () => {
     const app = await loadApp();
 
     expect(app.textContent).toContain('Use it like a sidecar scorekeeper');
+    expect(app.textContent).toContain('Full help');
+    expect(app.textContent).toContain('Compact board');
     expect(app.textContent).toContain('Guided turn mode');
     expect(app.textContent).toContain('Next step: enter the roll');
     expect(app.textContent).toContain('Choose a dice total');
@@ -65,14 +67,20 @@ describe('strategy app shell', () => {
   it('toggles and persists compact returning-player mode', async () => {
     let app = await loadApp();
 
-    click('#help-mode-btn');
+    expect(document.querySelector('#help-mode-btn')?.textContent).toContain('Hide help');
+    click('[data-help-mode="compact"]');
 
     expect(app.textContent).toContain('Compact mode on');
+    expect(app.textContent).toContain('Compact board');
     expect(app.textContent).toContain('Board first.');
     expect(app.textContent).toContain('Show help');
     expect(app.textContent).not.toContain('Use it like a sidecar scorekeeper');
+    expect(app.textContent).not.toContain('Guided turn mode');
+    expect(app.textContent).not.toContain('State analysis');
+    expect(app.textContent).not.toContain('Dice odds');
     expect(document.querySelector('.app-layout')?.className).toContain('is-compact');
     expect(document.querySelector('.play-primer')).toBeNull();
+    expect(document.querySelector('.summary-panel')).toBeNull();
 
     click('[data-roll="7"]');
     expect(document.querySelector('.why-panel')?.hasAttribute('open')).toBe(false);
@@ -84,6 +92,9 @@ describe('strategy app shell', () => {
     click('#restore-guidance-btn');
     expect(app.textContent).toContain('Guidance restored');
     expect(app.textContent).toContain('Use it like a sidecar scorekeeper');
+
+    click('#help-mode-btn');
+    expect(app.textContent).toContain('Compact mode on');
   });
 
   it('ranks moves after a roll and applies the best move', async () => {
