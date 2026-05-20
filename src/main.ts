@@ -19,6 +19,7 @@ const PAGE_PATHS: Record<AppPage, string> = {
   math: '/math',
 };
 const BASE_PATH = import.meta.env.BASE_URL.replace(/\/$/, '');
+const DEPLOYED_BASE_PATH = '/shut-the-box-optimal-strategy';
 
 const state: AppState = {
   gameState: FULL_STATE,
@@ -107,8 +108,9 @@ function randomRoll(): number {
 }
 
 function currentPage(): AppPage {
-  const path = window.location.pathname;
-  const route = path.startsWith(BASE_PATH) ? path.slice(BASE_PATH.length) || '/' : '/';
+  const path = window.location.pathname.replace(/\/$/, '') || '/';
+  const base = path.startsWith(DEPLOYED_BASE_PATH) ? DEPLOYED_BASE_PATH : BASE_PATH;
+  const route = base && path.startsWith(base) ? path.slice(base.length) || '/' : path;
   const normalized = route.replace(/\/$/, '') || '/';
   if (normalized === PAGE_PATHS.math) return 'math';
   if (normalized === PAGE_PATHS.guide) return 'guide';
@@ -117,7 +119,10 @@ function currentPage(): AppPage {
 
 function pageUrl(page: AppPage): string {
   const path = PAGE_PATHS[page];
-  return BASE_PATH + (path === '/' ? '/' : path);
+  const base = window.location.pathname.startsWith(DEPLOYED_BASE_PATH)
+    ? DEPLOYED_BASE_PATH
+    : BASE_PATH;
+  return base + (path === '/' ? '/' : path);
 }
 
 function setPage(page: AppPage, push = true): void {
