@@ -12,6 +12,7 @@ dist-ssr/
 
 # Test and coverage output
 coverage/
+screenshots/
 .nyc_output/
 test-results/
 playwright-report/

@@ -13,13 +13,19 @@ interface AppState {
 
 const FULL_STATE = 0x1ff;
 type AppPage = 'play' | 'guide' | 'math';
+const PAGE_PATHS: Record<AppPage, string> = {
+  play: '/',
+  guide: '/how-to-use',
+  math: '/math',
+};
+const BASE_PATH = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 const state: AppState = {
   gameState: FULL_STATE,
   roll: null,
   objective: 'minimize_score',
   useOneDie: true,
-  page: 'play',
+  page: currentPage(),
 };
 
 const objectiveMeta: Record<Objective, { label: string; shortLabel: string; description: string }> =
@@ -100,6 +106,26 @@ function randomRoll(): number {
   return Math.ceil(Math.random() * 6) + Math.ceil(Math.random() * 6);
 }
 
+function currentPage(): AppPage {
+  const path = window.location.pathname;
+  const route = path.startsWith(BASE_PATH) ? path.slice(BASE_PATH.length) || '/' : '/';
+  const normalized = route.replace(/\/$/, '') || '/';
+  if (normalized === PAGE_PATHS.math) return 'math';
+  if (normalized === PAGE_PATHS.guide) return 'guide';
+  return 'play';
+}
+
+function pageUrl(page: AppPage): string {
+  const path = PAGE_PATHS[page];
+  return BASE_PATH + (path === '/' ? '/' : path);
+}
+
+function setPage(page: AppPage, push = true): void {
+  state.page = page;
+  if (push) window.history.pushState({ page }, '', pageUrl(page));
+  render();
+}
+
 function render(): void {
   normalizeRoll();
   document.getElementById('app')!.innerHTML = buildApp();
@@ -120,6 +146,7 @@ function pageBody(ranked: RankedMove[]): string {
 function playPage(ranked: RankedMove[]): string {
   return [
     '<main class="app-layout">',
+    playPrimer(),
     workflowPanel(ranked),
     '<section class="strategy-stage" aria-label="Optimal move workspace">',
     '<div class="board-stack">',
@@ -174,15 +201,17 @@ function pageNav(): string {
       .map(([page, label]) => {
         const active = state.page === page ? ' is-active' : '';
         return (
-          '<button class="nav-tab' +
+          '<a class="nav-tab' +
           active +
-          '" type="button" data-page="' +
+          '" href="' +
+          pageUrl(page) +
+          '" data-page="' +
           page +
-          '" aria-pressed="' +
-          (state.page === page) +
+          '" aria-current="' +
+          (state.page === page ? 'page' : 'false') +
           '">' +
           label +
-          '</button>'
+          '</a>'
         );
       })
       .join('') +
@@ -194,6 +223,8 @@ function helpTag(label: string, tooltip: string): string {
   return (
     '<span class="help-tag" tabindex="0" role="note" title="' +
     tooltip +
+    '" data-tip="' +
+    tooltip +
     '" aria-label="' +
     label +
     ': ' +
@@ -202,6 +233,20 @@ function helpTag(label: string, tooltip: string): string {
     label +
     '</span>'
   );
+}
+
+function playPrimer(): string {
+  return [
+    '<section class="play-primer" aria-label="Quick start">',
+    '<div><span class="eyebrow">Start here</span><h2>Use it like a sidecar scorekeeper</h2>',
+    '<p>Do these in order: match the open tiles, enter the dice total, read the top recommendation, then apply the move.</p></div>',
+    '<ol>',
+    '<li><strong>Board</strong><span>Bright tiles are open. Tap a tile when your real board differs.</span></li>',
+    '<li><strong>Roll</strong><span>Enter the total shown on the dice, not each die separately.</span></li>',
+    '<li><strong>Move</strong><span>The green recommendation is the best move for the selected objective.</span></li>',
+    '</ol>',
+    '</section>',
+  ].join('');
 }
 
 function workflowPanel(ranked: RankedMove[]): string {
@@ -671,29 +716,38 @@ function guidePage(): string {
   return [
     '<main class="content-page" aria-label="How to use the strategy app">',
     '<section class="content-hero">',
-    '<span class="eyebrow">Manual</span><h2>How to use the advisor</h2>',
-    '<p>Use the app as a turn-by-turn assistant beside a real Shut the Box board. Match the board, enter the roll, then apply the recommended move.</p>',
+    '<span class="eyebrow">Manual</span><h2>How to use the advisor without guessing</h2>',
+    '<p>This app is not a dice game simulator. It is an optimal move table for the real board in front of you. Keep the app state matched to the physical tiles, then let the advisor rank the legal moves.</p>',
+    '</section>',
+    '<section class="walkthrough-panel" aria-label="Thirty second walkthrough">',
+    '<div><span class="eyebrow">30-second flow</span><h3>One turn, end to end</h3></div>',
+    '<ol>',
+    '<li><strong>Look at your board.</strong><span>If tiles 1, 2, 4, and 9 are still up, those exact tiles should be bright in the app.</span></li>',
+    '<li><strong>Roll the dice.</strong><span>If the dice show 3 and 4, enter 7. Do not enter each die separately.</span></li>',
+    '<li><strong>Read the top card.</strong><span>If it says Close 7, that is the recommended tile set for the selected objective.</span></li>',
+    '<li><strong>Apply best.</strong><span>The app closes those tiles and clears the roll so you can start the next turn.</span></li>',
+    '</ol>',
     '</section>',
     '<section class="guide-grid">',
     guideCard(
       '1',
       'Match the board',
-      'Open tiles are bright. Closed tiles are dark with a strike-through. Tap any tile if the app does not match the physical board.',
+      'Open means the tile is still standing and can be closed. Closed means it is already down. The app must match before the advice is meaningful.',
     ),
     guideCard(
       '2',
       'Enter the dice total',
-      'Tap a quick total, type the number, or use Roll for a simulated value. The valid range changes between 2d6 and 1d6.',
+      'Use the sum of the dice. With two dice, valid totals are 2-12. With the one-die rule active, valid totals are 1-6.',
     ),
     guideCard(
       '3',
       'Choose an objective',
-      'Lowest score is standard play. Shut chance is aggressive for score 0. Survival avoids immediate dead-roll risk.',
+      'Lowest score is normal scoring strategy. Shut chance maximizes score-zero attempts. Survival is for avoiding an immediate dead roll.',
     ),
     guideCard(
       '4',
       'Apply a move',
-      'The advisor highlights the best tiles in yellow. Apply best closes them; alternative rows are also clickable.',
+      'The highlighted tile set is the top-ranked move. Alternative rows are legal too; click one if you intentionally want a different tradeoff.',
     ),
     '</section>',
     '<section class="paper-panel">',
@@ -724,32 +778,81 @@ function guideCard(step: string, title: string, body: string): string {
 function mathPage(): string {
   return [
     '<main class="content-page math-page" aria-label="Math behind the optimal strategy">',
-    '<article class="paper-panel math-paper">',
-    '<span class="eyebrow">Math paper</span><h2>Dynamic programming model</h2>',
-    '<p>Each board is encoded as a 9-bit state. Bit i is set when tile i + 1 is open. The full board is 0x1FF, and the shut board is 0.</p>',
-    '<h3>Legal moves</h3>',
-    '<p>For a state s and roll r, the legal move set M(s, r) contains every non-empty subset of open tiles whose tile values sum to r. Applying move m gives the next state s &amp; ~m.</p>',
-    '<h3>Expected-score objective</h3>',
-    '<pre><code>V_score(0) = 0\nV_score(s) = sum_r p(r) * terminal_or_best(s, r)\nterminal_or_best(s, r) = score(s)              if M(s,r) is empty\n                       = min_m V_score(s &amp; ~m) otherwise</code></pre>',
-    '<h3>Shut-probability objective</h3>',
-    '<pre><code>V_shut(0) = 1\nV_shut(s) = sum_r p(r) * terminal_or_best(s, r)\nterminal_or_best(s, r) = 0                     if M(s,r) is empty\n                       = max_m V_shut(s &amp; ~m)  otherwise</code></pre>',
-    '<h3>Survival objective</h3>',
-    '<p>Survival is the probability that the next roll has at least one legal move. The app ranks a candidate move by the survival probability of its resulting board.</p>',
-    '<pre><code>V_survive(s) = sum_r p(r) * I[M(s,r) is not empty]</code></pre>',
-    '<h3>Why bottom-up works</h3>',
-    '<p>Every legal move closes at least one open tile, so s &amp; ~m is always a smaller bitmask than s. Computing states from 0 through 511 means every child state is already known.</p>',
-    '<h3>Dice distributions</h3>',
-    '<p>Two-dice probabilities use the exact 36 equally likely ordered outcomes. One-die probabilities use six equally likely outcomes. With the one-die rule enabled, states with tiles 7-9 closed use the one-die table.</p>',
+    '<section class="math-hero">',
+    '<div><span class="eyebrow">Math paper</span><h2>Optimal Shut the Box as dynamic programming</h2>',
+    '<p>A board is a bitmask, a roll selects legal subsets, and each move jumps to a smaller state. That makes the whole strategy table computable exactly.</p></div>',
+    '<div class="state-diagram" aria-label="State transition diagram">',
+    '<span>state s</span><i>roll r</i><span>legal moves M(s,r)</span><i>choose m</i><span>s &amp; ~m</span>',
+    '</div>',
+    '</section>',
+    '<section class="math-grid">',
+    '<article class="paper-panel formula-panel">',
+    '<span class="eyebrow">State encoding</span><h3>Tiles become a 9-bit vector</h3>',
+    '<div class="bit-row" aria-label="Bitmask tiles">' +
+      Array.from(
+        { length: 9 },
+        (_, index) => '<span><b>' + (index + 1) + '</b><small>2^' + index + '</small></span>',
+      ).join('') +
+      '</div>',
+    '<p>Bit i is 1 when tile i + 1 is open. Full board is <code>0x1FF</code>; shut board is <code>0</code>.</p>',
     '</article>',
+    '<article class="paper-panel formula-panel">',
+    '<span class="eyebrow">Legal moves</span><h3>Only subsets that sum to the roll count</h3>',
+    '<p class="formula">M(s,r) = { m subset s : sum tiles(m) = r }</p>',
+    '<p>Applying a legal move removes those bits: <code>next = s &amp; ~m</code>.</p>',
+    '</article>',
+    '</section>',
+    '<section class="paper-panel theorem-panel">',
+    '<span class="eyebrow">Bellman equations</span><h3>The exact value functions</h3>',
+    '<div class="equation-stack">',
+    equationCard(
+      'Expected score',
+      'V_score(0) = 0',
+      'V_score(s) = sum_r p(r) min_or_score(s,r)',
+      'If no legal move exists, the terminal value is score(s). Otherwise choose the move with the smallest future score.',
+    ),
+    equationCard(
+      'Shut probability',
+      'V_shut(0) = 1',
+      'V_shut(s) = sum_r p(r) max_or_zero(s,r)',
+      'If no legal move exists, the contribution is 0. Otherwise choose the move with the largest chance of reaching state 0.',
+    ),
+    equationCard(
+      'Survival',
+      'V_survive(s) = sum_r p(r) 1[M(s,r) != empty]',
+      'rank(m) = V_survive(s & ~m)',
+      'This objective is intentionally short-horizon: it asks which move is least likely to die on the next roll.',
+    ),
+    '</div>',
+    '</section>',
+    '<section class="paper-panel proof-panel">',
+    '<span class="eyebrow">Why it terminates</span><h3>Every move goes downhill</h3>',
+    '<p>Every legal move closes at least one open tile. Therefore <code>s &amp; ~m &lt; s</code>. The engine can compute all 512 states in ascending order because every child state has already been solved.</p>',
+    '<div class="dice-proof"><div><strong>2d6</strong><span>36 ordered outcomes, totals 2-12, peak mass at 7.</span></div><div><strong>1d6</strong><span>6 ordered outcomes, totals 1-6, uniform mass.</span></div></div>',
+    '</section>',
     '</main>',
   ].join('');
 }
 
+function equationCard(title: string, base: string, recurrence: string, note: string): string {
+  return (
+    '<article class="equation-card"><h4>' +
+    title +
+    '</h4><pre><code>' +
+    base +
+    '\n' +
+    recurrence +
+    '</code></pre><p>' +
+    note +
+    '</p></article>'
+  );
+}
+
 function attach(): void {
-  document.querySelectorAll<HTMLButtonElement>('[data-page]').forEach((button) => {
-    button.addEventListener('click', () => {
-      state.page = button.dataset.page as AppPage;
-      render();
+  document.querySelectorAll<HTMLAnchorElement>('[data-page]').forEach((link) => {
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      setPage(link.dataset.page as AppPage);
     });
   });
 
@@ -814,5 +917,10 @@ function attach(): void {
     });
   });
 }
+
+window.addEventListener('popstate', () => {
+  state.page = currentPage();
+  render();
+});
 
 render();

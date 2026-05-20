@@ -2,27 +2,27 @@
 
 @layer base {
   :root {
-    color-scheme: light;
-    --bg: #f4f0e6;
-    --bg-strong: #ebe1ce;
-    --surface: #fffdf8;
-    --surface-soft: #f8f3e8;
-    --surface-strong: #ffffff;
-    --ink: #1d221f;
-    --muted: #6d706b;
-    --line: #d8cdb8;
-    --line-strong: #b8a98e;
-    --felt: #155b43;
-    --felt-light: #1f7357;
-    --felt-dark: #0d352b;
-    --wood: #7a4e2d;
-    --wood-dark: #4c2e1e;
-    --gold: #d6a645;
-    --blue: #2868a8;
-    --red: #bd443a;
-    --green: #167550;
-    --shadow: 0 18px 44px rgba(42, 32, 21, 0.16);
-    --tight-shadow: 0 8px 20px rgba(42, 32, 21, 0.12);
+    color-scheme: dark;
+    --bg: #090d12;
+    --bg-strong: #111821;
+    --surface: #121a22;
+    --surface-soft: #18222d;
+    --surface-strong: #202c37;
+    --ink: #edf5ef;
+    --muted: #9da9a4;
+    --line: rgba(202, 213, 206, 0.14);
+    --line-strong: rgba(202, 213, 206, 0.28);
+    --felt: #18a16f;
+    --felt-light: #34d399;
+    --felt-dark: #082c25;
+    --wood: #c08457;
+    --wood-dark: #5d3827;
+    --gold: #f1c75b;
+    --blue: #60a5fa;
+    --red: #f87171;
+    --green: #34d399;
+    --shadow: 0 22px 58px rgba(0, 0, 0, 0.42);
+    --tight-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
   }
 
   * {
@@ -46,8 +46,9 @@
       'Segoe UI',
       sans-serif;
     background:
-      linear-gradient(180deg, rgba(122, 78, 45, 0.12), transparent 260px),
-      radial-gradient(ellipse at top, rgba(255, 255, 255, 0.65), transparent 58%), var(--bg);
+      radial-gradient(circle at 18% 0%, rgba(24, 161, 111, 0.18), transparent 30rem),
+      radial-gradient(circle at 85% 18%, rgba(241, 199, 91, 0.1), transparent 24rem),
+      linear-gradient(180deg, #0c1118 0%, var(--bg) 48rem);
     color: var(--ink);
     -webkit-font-smoothing: antialiased;
     text-rendering: geometricPrecision;
@@ -1082,6 +1083,445 @@ input[type='number'] {
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
 }
 
+.math-page,
+.math-page * {
+  min-width: 0;
+}
+
+.top-bar {
+  border-bottom-color: var(--line);
+  background: rgba(9, 13, 18, 0.82);
+}
+
+.brand-mark {
+  border-color: rgba(52, 211, 153, 0.32);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.18), transparent 38%),
+    linear-gradient(160deg, #146c52, #071f1b);
+}
+
+.page-nav {
+  background: rgba(18, 26, 34, 0.82);
+}
+
+.nav-tab {
+  color: var(--muted);
+  text-align: center;
+  text-decoration: none;
+}
+
+.nav-tab:hover,
+.nav-tab.is-active {
+  background: rgba(237, 245, 239, 0.1);
+  color: var(--ink);
+}
+
+.score-pill,
+.mode-pill,
+.status-badge,
+.workflow-step,
+.summary-stats div,
+.metric-list div,
+.rule-line,
+.number-field input,
+.roll-chip,
+.objective-option,
+.switch-row,
+.metric-hero,
+.content-hero,
+.paper-panel,
+.guide-card {
+  border-color: var(--line);
+  background: rgba(18, 26, 34, 0.78);
+  color: var(--ink);
+}
+
+.panel,
+.summary-panel,
+.board-panel {
+  border-color: var(--line);
+  background: rgba(18, 26, 34, 0.76);
+  box-shadow: var(--tight-shadow);
+}
+
+.summary-panel,
+.panel,
+.content-hero,
+.paper-panel,
+.guide-card {
+  backdrop-filter: blur(18px);
+}
+
+.score-pill strong {
+  background: rgba(237, 245, 239, 0.08);
+  color: var(--ink);
+}
+
+.mode-pill {
+  background: rgba(24, 161, 111, 0.14);
+  color: #a7f3d0;
+}
+
+.button-quiet {
+  background: rgba(237, 245, 239, 0.08);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.button-primary {
+  background: linear-gradient(180deg, #20b77d, #0c7655);
+  color: #f5fff9;
+}
+
+.play-primer,
+.walkthrough-panel,
+.math-hero {
+  display: grid;
+  gap: 16px;
+  border: 1px solid rgba(52, 211, 153, 0.22);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(24, 161, 111, 0.16), rgba(96, 165, 250, 0.06)),
+    rgba(18, 26, 34, 0.82);
+  box-shadow: var(--tight-shadow);
+  backdrop-filter: blur(18px);
+}
+
+.play-primer {
+  grid-template-columns: minmax(0, 0.92fr) minmax(340px, 1fr);
+  padding: 16px;
+}
+
+.play-primer h2,
+.walkthrough-panel h3,
+.math-hero h2 {
+  margin: 4px 0 0;
+  letter-spacing: 0;
+}
+
+.play-primer h2 {
+  font-size: clamp(1.35rem, 2.3vw, 2.1rem);
+}
+
+.play-primer p,
+.walkthrough-panel span,
+.math-hero p {
+  color: var(--muted);
+  font-weight: 720;
+  line-height: 1.45;
+}
+
+.play-primer p,
+.math-hero p {
+  margin: 8px 0 0;
+}
+
+.play-primer ol,
+.walkthrough-panel ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.play-primer li,
+.walkthrough-panel li {
+  display: grid;
+  grid-template-columns: minmax(82px, 0.28fr) minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(237, 245, 239, 0.06);
+}
+
+.play-primer strong,
+.walkthrough-panel strong {
+  color: #a7f3d0;
+}
+
+.walkthrough-panel {
+  padding: clamp(16px, 2.4vw, 24px);
+}
+
+.workflow-step {
+  background: rgba(18, 26, 34, 0.76);
+}
+
+.workflow-step > span,
+.move-rank {
+  background: rgba(237, 245, 239, 0.1);
+  color: var(--ink);
+}
+
+.workflow-step.is-active {
+  border-color: rgba(241, 199, 91, 0.72);
+  background: rgba(241, 199, 91, 0.1);
+}
+
+.workflow-step.is-active > span {
+  background: var(--gold);
+  color: #201600;
+}
+
+.workflow-step.is-done > span {
+  background: var(--felt);
+  color: #05130f;
+}
+
+.board-panel {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.1), transparent 36%),
+    radial-gradient(ellipse at center, rgba(52, 211, 153, 0.18), transparent 72%), #071c18;
+}
+
+.tile-button.is-open {
+  background: linear-gradient(180deg, #fff7df, #d6b982);
+  color: #1d1308;
+}
+
+.tile-button.is-closed {
+  background: rgba(1, 8, 10, 0.82);
+  color: rgba(237, 245, 239, 0.32);
+}
+
+.tile-button.is-optimal {
+  border-color: var(--gold);
+  box-shadow:
+    inset 0 -12px 18px rgba(76, 46, 30, 0.12),
+    0 0 0 4px rgba(241, 199, 91, 0.28),
+    0 14px 26px rgba(0, 0, 0, 0.36);
+}
+
+.status-badge.good,
+.status-badge.success,
+.best-move-card,
+.objective-option.is-active {
+  border-color: rgba(52, 211, 153, 0.42);
+  background: rgba(24, 161, 111, 0.14);
+  color: #a7f3d0;
+}
+
+.status-badge.danger,
+.danger-state {
+  border-color: rgba(248, 113, 113, 0.42);
+  background: rgba(248, 113, 113, 0.14);
+  color: #fecaca;
+}
+
+.best-move-card strong,
+.move-row em,
+.definition-list strong {
+  color: #a7f3d0;
+}
+
+.move-row {
+  border-color: var(--line);
+  background: rgba(237, 245, 239, 0.06);
+  color: var(--ink);
+}
+
+.move-row strong,
+.summary-panel p,
+.advisor-panel p,
+.muted,
+.objective-option small,
+.switch-row small,
+.content-hero p,
+.paper-panel p,
+.guide-card p,
+.definition-list span {
+  color: var(--muted);
+}
+
+.probability-bar i {
+  background: rgba(202, 213, 206, 0.32);
+}
+
+.probability-bar.is-active i {
+  background: var(--gold);
+}
+
+.help-tag {
+  position: relative;
+  border-color: rgba(52, 211, 153, 0.38);
+  background: rgba(52, 211, 153, 0.14);
+  color: #a7f3d0;
+}
+
+.help-tag::after {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  z-index: 50;
+  width: min(280px, 74vw);
+  padding: 10px 12px;
+  border: 1px solid rgba(52, 211, 153, 0.32);
+  border-radius: 8px;
+  background: #07110f;
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  content: attr(data-tip);
+  font-size: 0.78rem;
+  font-weight: 720;
+  line-height: 1.35;
+  opacity: 0;
+  pointer-events: none;
+  text-transform: none;
+  transform: translate(-50%, 6px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.help-tag:hover::after,
+.help-tag:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.math-hero {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.75fr);
+  padding: clamp(18px, 3vw, 30px);
+}
+
+.state-diagram {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.state-diagram span,
+.state-diagram i,
+.bit-row span,
+.equation-card,
+.dice-proof div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(237, 245, 239, 0.06);
+}
+
+.state-diagram span {
+  padding: 14px 10px;
+  text-align: center;
+  font-weight: 900;
+}
+
+.state-diagram i {
+  padding: 8px;
+  color: var(--gold);
+  font-style: normal;
+  font-weight: 950;
+  text-align: center;
+}
+
+.math-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.formula-panel code {
+  color: #f8e7ad;
+}
+
+.formula {
+  padding: 14px;
+  border: 1px solid rgba(241, 199, 91, 0.28);
+  border-radius: 8px;
+  background: rgba(241, 199, 91, 0.1);
+  color: #fde68a !important;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-weight: 850;
+}
+
+.bit-row {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.bit-row span {
+  display: grid;
+  min-height: 58px;
+  place-items: center;
+}
+
+.bit-row b,
+.bit-row small {
+  display: block;
+}
+
+.bit-row b {
+  color: var(--ink);
+  font-size: 1.2rem;
+}
+
+.bit-row small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 850;
+}
+
+.equation-stack {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.equation-card {
+  padding: 14px;
+}
+
+.equation-card h4 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.equation-card pre,
+.math-paper pre {
+  overflow-x: hidden;
+  background: #06110f;
+  white-space: pre-wrap;
+}
+
+.equation-card code,
+.math-paper code {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.equation-card p {
+  margin: 10px 0 0;
+}
+
+.dice-proof {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.dice-proof div {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.dice-proof strong {
+  color: var(--gold);
+  font-size: 1.15rem;
+}
+
+.dice-proof span {
+  color: var(--muted);
+  font-weight: 720;
+}
+
 .score-zero {
   color: var(--green) !important;
 }
@@ -1121,6 +1561,21 @@ input[type='number'] {
   .guide-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .play-primer,
+  .math-hero,
+  .math-grid,
+  .equation-stack {
+    grid-template-columns: 1fr;
+  }
+
+  .state-diagram {
+    grid-template-columns: 1fr;
+  }
+
+  .state-diagram i::after {
+    content: ' ↓';
+  }
 }
 
 @media (max-width: 760px) {
@@ -1151,7 +1606,8 @@ input[type='number'] {
   .analysis-strip,
   .summary-panel,
   .guide-grid,
-  .definition-list div {
+  .definition-list div,
+  .dice-proof {
     grid-template-columns: 1fr;
   }
 
@@ -1255,6 +1711,15 @@ input[type='number'] {
 
   .content-page {
     padding: 10px;
+  }
+
+  .play-primer li,
+  .walkthrough-panel li {
+    grid-template-columns: 1fr;
+  }
+
+  .bit-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .content-hero h2,
