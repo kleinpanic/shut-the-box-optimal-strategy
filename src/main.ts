@@ -11,7 +11,11 @@ interface AppState {
   page: AppPage;
 }
 
+type Snapshot = Pick<AppState, 'gameState' | 'roll' | 'objective' | 'diceMode'>;
+
 const FULL_STATE = 0x1ff;
+const HIGH_TILES_MASK = 0x1c0;
+const STORAGE_KEY = 'shut-the-box-optimal-strategy:state:v1';
 type AppPage = 'play' | 'guide' | 'math';
 type DiceMode = 'auto' | 'two' | 'one';
 const PAGE_PATHS: Record<AppPage, string> = {
@@ -22,13 +26,18 @@ const PAGE_PATHS: Record<AppPage, string> = {
 const BASE_PATH = import.meta.env.BASE_URL.replace(/\/$/, '');
 const DEPLOYED_BASE_PATH = '/shut-the-box-optimal-strategy';
 
+const savedState = loadSavedState();
 const state: AppState = {
   gameState: FULL_STATE,
   roll: null,
   objective: 'minimize_score',
   diceMode: 'auto',
+  ...savedState,
   page: currentPage(),
 };
+let undoStack: Snapshot[] = [];
+let redoStack: Snapshot[] = [];
+let lastNotice: string | null = null;
 
 const objectiveMeta: Record<Objective, { label: string; shortLabel: string; description: string }> =
   {
@@ -50,7 +59,7 @@ const objectiveMeta: Record<Objective, { label: string; shortLabel: string; desc
   };
 
 function canUseOneDie(gameState: number): boolean {
-  return (gameState & 0x1c0) === 0;
+  return (gameState & HIGH_TILES_MASK) === 0;
 }
 
 function activeOneDie(): boolean {
@@ -113,6 +122,93 @@ function randomRoll(): number {
   return Math.ceil(Math.random() * 6) + Math.ceil(Math.random() * 6);
 }
 
+function snapshotState(): Snapshot {
+  return {
+    gameState: state.gameState,
+    roll: state.roll,
+    objective: state.objective,
+    diceMode: state.diceMode,
+  };
+}
+
+function restoreSnapshot(snapshot: Snapshot): void {
+  state.gameState = snapshot.gameState;
+  state.roll = snapshot.roll;
+  state.objective = snapshot.objective;
+  state.diceMode = snapshot.diceMode;
+}
+
+function isValidSnapshot(value: unknown): value is Snapshot {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.gameState === 'number' &&
+    candidate.gameState >= 0 &&
+    candidate.gameState <= FULL_STATE &&
+    (typeof candidate.roll === 'number' || candidate.roll === null) &&
+    ['minimize_score', 'maximize_shutting', 'maximize_survival'].includes(
+      String(candidate.objective),
+    ) &&
+    ['auto', 'two', 'one'].includes(String(candidate.diceMode))
+  );
+}
+
+function loadSavedState(): Snapshot | null {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    return isValidSnapshot(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveState(): void {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshotState()));
+  } catch {
+    // Storage is optional; the strategy app still works without it.
+  }
+}
+
+function commitAction(notice: string, mutate: () => void): void {
+  undoStack.push(snapshotState());
+  if (undoStack.length > 40) undoStack = undoStack.slice(-40);
+  redoStack = [];
+  mutate();
+  normalizeRoll();
+  lastNotice = notice;
+  saveState();
+  render();
+}
+
+function undo(): void {
+  const previous = undoStack.pop();
+  if (!previous) return;
+  redoStack.push(snapshotState());
+  restoreSnapshot(previous);
+  lastNotice = 'Undid the last board change.';
+  saveState();
+  render();
+}
+
+function redo(): void {
+  const next = redoStack.pop();
+  if (!next) return;
+  undoStack.push(snapshotState());
+  restoreSnapshot(next);
+  lastNotice = 'Redid the board change.';
+  saveState();
+  render();
+}
+
+function moveMaskLabel(mask: number): string {
+  return Array.from({ length: 9 }, (_, index) => index + 1)
+    .filter((tile) => (mask & (1 << (tile - 1))) !== 0)
+    .join(' + ');
+}
+
 function currentPage(): AppPage {
   const path = window.location.pathname.replace(/\/$/, '') || '/';
   const base = path.startsWith(DEPLOYED_BASE_PATH) ? DEPLOYED_BASE_PATH : BASE_PATH;
@@ -159,6 +255,7 @@ function playPage(ranked: RankedMove[]): string {
     '<main class="app-layout">',
     playPrimer(),
     workflowPanel(ranked),
+    noticePanel(),
     '<section class="strategy-stage" aria-label="Optimal move workspace">',
     '<div class="board-stack">',
     gameSummary(ranked),
@@ -177,6 +274,11 @@ function playPage(ranked: RankedMove[]): string {
     '</section>',
     '</main>',
   ].join('');
+}
+
+function noticePanel(): string {
+  if (!lastNotice) return '';
+  return '<section class="notice-panel" role="status">' + lastNotice + '</section>';
 }
 
 function topBar(): string {
@@ -267,6 +369,7 @@ function playPrimer(): string {
 }
 
 function workflowPanel(ranked: RankedMove[]): string {
+  const focus = guidedFocus(ranked);
   const steps = [
     {
       label: 'Set board',
@@ -298,7 +401,11 @@ function workflowPanel(ranked: RankedMove[]): string {
   ];
 
   return (
-    '<section class="workflow-panel" aria-label="Play workflow">' +
+    '<section class="workflow-panel" aria-label="Guided turn mode"><div class="workflow-focus"><span class="eyebrow">Guided turn mode</span><h2>Next step: ' +
+    focus.title +
+    '</h2><p>' +
+    focus.body +
+    '</p></div><div class="workflow-steps">' +
     steps
       .map(
         (step, index) =>
@@ -315,8 +422,33 @@ function workflowPanel(ranked: RankedMove[]): string {
           '</small></div></div>',
       )
       .join('') +
-    '</section>'
+    '</div></section>'
   );
+}
+
+function guidedFocus(ranked: RankedMove[]): { title: string; body: string } {
+  if (state.gameState === 0) {
+    return {
+      title: 'start a new game',
+      body: 'The board is shut. Use New game when you want to solve another round.',
+    };
+  }
+  if (state.roll === null) {
+    return {
+      title: 'enter the roll',
+      body: 'Match the board first, then tap a roll chip, type the total, press a number key, or use Roll.',
+    };
+  }
+  if (ranked[0]) {
+    return {
+      title: 'apply the best move',
+      body: 'The highlighted tiles are the current recommendation. Press Enter or click Apply best.',
+    };
+  }
+  return {
+    title: 'record the dead roll',
+    body: 'No open tile combination matches this total. The shown score is the turn result.',
+  };
 }
 
 function workflowHelp(index: number): string {
@@ -396,9 +528,26 @@ function tileBoard(ranked: RankedMove[]): string {
     '<div class="section-heading"><div><span class="eyebrow">Board</span><h2>Open tiles</h2></div>',
     boardBadge(ranked),
     '</div>',
+    boardTools(),
     '<div class="tile-row">' + tiles + '</div>',
     '<p class="line-help inverted">Tap a tile to mark it open or closed. Yellow outlined tiles are the current best move.</p>',
     '</section>',
+  ].join('');
+}
+
+function boardTools(): string {
+  return [
+    '<div class="board-tools" aria-label="Board shortcuts">',
+    '<button id="all-open-btn" class="button button-quiet" type="button" title="Set every tile to open.">All open</button>',
+    '<button id="clear-high-btn" class="button button-quiet" type="button" title="Close tiles 7, 8, and 9 to unlock one-die play.">Clear 7-9</button>',
+    '<button id="demo-turn-btn" class="button button-quiet" type="button" title="Load a sample board and roll.">Demo turn</button>',
+    '<button id="undo-btn" class="button button-quiet" type="button" ' +
+      (undoStack.length === 0 ? 'disabled aria-disabled="true"' : '') +
+      ' title="Undo the last board or setting change.">Undo</button>',
+    '<button id="redo-btn" class="button button-quiet" type="button" ' +
+      (redoStack.length === 0 ? 'disabled aria-disabled="true"' : '') +
+      ' title="Redo the last undone change.">Redo</button>',
+    '</div>',
   ].join('');
 }
 
@@ -448,6 +597,7 @@ function dicePanel(): string {
         : '') +
       '</div></div>',
     diceModeControl(),
+    oneDieCallout(),
     '<label class="number-field"><span>Total</span><input id="dice-input" type="number" min="' +
       range.min +
       '" max="' +
@@ -464,6 +614,17 @@ function dicePanel(): string {
     '<p class="line-help">Pick the total first. Legal moves appear immediately in the move advisor.</p>',
     '</section>',
   ].join('');
+}
+
+function oneDieCallout(): string {
+  if (!canUseOneDie(state.gameState)) return '';
+  const message =
+    state.diceMode === 'auto'
+      ? 'One die is available. Auto selected 1d6, and you can still force 2d6.'
+      : state.diceMode === 'two'
+        ? 'One die is available, but manual 2 dice is active.'
+        : 'Manual 1d6 is active for the rest of this board state.';
+  return '<div class="one-die-callout" role="note">' + message + '</div>';
 }
 
 function diceVisual(): string {
@@ -557,12 +718,35 @@ function advisorPanel(ranked: RankedMove[]): string {
       '</strong><p>' +
       moveExplanation(best) +
       '</p></div></div>',
+    moveWhyPanel(best, ranked[1]),
     alternatives
       ? '<div class="move-table" aria-label="Alternative moves"><div class="table-caption">Compare alternatives</div>' +
         alternatives +
         '</div>'
       : '<p class="muted compact">Only one legal move for this roll.</p>',
     '</section>',
+  ].join('');
+}
+
+function moveWhyPanel(best: RankedMove, nextBest?: RankedMove): string {
+  const comparison = nextBest
+    ? 'The next alternative is Close ' +
+      moveLabel(nextBest) +
+      ', rated ' +
+      nextBest.explanation +
+      '.'
+    : 'There is no second legal move for this roll.';
+  return [
+    '<details class="why-panel" open>',
+    '<summary>Why this move?</summary>',
+    '<p>Close ' +
+      moveLabel(best) +
+      ' because it is the best-ranked legal subset for ' +
+      objectiveMeta[state.objective].shortLabel +
+      '. ' +
+      comparison +
+      '</p>',
+    '</details>',
   ].join('');
 }
 
@@ -920,63 +1104,166 @@ function attach(): void {
     state.roll = null;
     state.objective = 'minimize_score';
     state.diceMode = 'auto';
+    undoStack = [];
+    redoStack = [];
+    lastNotice = 'New game loaded. Match the board, then enter a roll.';
+    saveState();
     render();
   });
 
   document.querySelectorAll<HTMLButtonElement>('[data-objective]').forEach((button) => {
     button.addEventListener('click', () => {
-      state.objective = button.dataset.objective as Objective;
-      render();
+      const label = objectiveMeta[button.dataset.objective as Objective].shortLabel;
+      commitAction('Objective changed to ' + label + '.', () => {
+        state.objective = button.dataset.objective as Objective;
+      });
     });
   });
 
   document.querySelectorAll<HTMLButtonElement>('[data-dice-mode]').forEach((button) => {
     button.addEventListener('click', () => {
-      state.diceMode = button.dataset.diceMode as DiceMode;
-      render();
+      commitAction('Dice mode changed to ' + button.textContent?.trim() + '.', () => {
+        state.diceMode = button.dataset.diceMode as DiceMode;
+      });
     });
   });
 
   document.querySelectorAll<HTMLButtonElement>('[data-roll]').forEach((button) => {
     button.addEventListener('click', () => {
-      state.roll = Number(button.dataset.roll);
-      render();
+      commitAction('Roll set to ' + button.dataset.roll + '. Read the top move.', () => {
+        state.roll = Number(button.dataset.roll);
+      });
     });
   });
 
   document.getElementById('random-roll-btn')?.addEventListener('click', () => {
-    state.roll = randomRoll();
-    render();
+    const roll = randomRoll();
+    commitAction('Rolled ' + roll + '. Read the top move.', () => {
+      state.roll = roll;
+    });
   });
 
   document.getElementById('clear-roll-btn')?.addEventListener('click', () => {
-    state.roll = null;
-    render();
+    commitAction('Roll cleared. Enter the next dice total.', () => {
+      state.roll = null;
+    });
   });
 
   document.getElementById('dice-input')?.addEventListener('input', (event) => {
     const value = (event.currentTarget as HTMLInputElement).value;
-    state.roll = value === '' ? null : Number(value);
-    render();
+    commitAction(value === '' ? 'Roll cleared.' : 'Roll set to ' + value + '.', () => {
+      state.roll = value === '' ? null : Number(value);
+    });
   });
 
   document.querySelectorAll<HTMLButtonElement>('[data-tile]').forEach((button) => {
     button.addEventListener('click', () => {
       const tile = Number(button.dataset.tile);
-      state.gameState ^= 1 << (tile - 1);
-      state.roll = null;
-      render();
+      const isOpen = (state.gameState & (1 << (tile - 1))) !== 0;
+      commitAction('Tile ' + tile + (isOpen ? ' closed' : ' opened') + '. Roll cleared.', () => {
+        state.gameState ^= 1 << (tile - 1);
+        state.roll = null;
+      });
     });
   });
 
   document.querySelectorAll<HTMLButtonElement>('[data-move-mask]').forEach((button) => {
     button.addEventListener('click', () => {
       const mask = Number(button.dataset.moveMask);
-      state.gameState &= ~mask;
-      state.roll = null;
-      render();
+      commitAction('Closed ' + moveMaskLabel(mask) + '. Roll cleared. Next: roll again.', () => {
+        state.gameState &= ~mask;
+        state.roll = null;
+      });
     });
   });
+
+  document.getElementById('all-open-btn')?.addEventListener('click', () => {
+    commitAction('All tiles opened. Enter a roll when the board matches.', () => {
+      state.gameState = FULL_STATE;
+      state.roll = null;
+    });
+  });
+
+  document.getElementById('clear-high-btn')?.addEventListener('click', () => {
+    commitAction('Closed 7 + 8 + 9. One die is now available.', () => {
+      state.gameState &= ~HIGH_TILES_MASK;
+      state.roll = null;
+    });
+  });
+
+  document.getElementById('demo-turn-btn')?.addEventListener('click', () => {
+    commitAction('Demo turn loaded: roll 7, then compare and apply the recommendation.', () => {
+      state.gameState = FULL_STATE;
+      state.roll = 7;
+      state.objective = 'minimize_score';
+      state.diceMode = 'auto';
+    });
+  });
+
+  document.getElementById('undo-btn')?.addEventListener('click', undo);
+  document.getElementById('redo-btn')?.addEventListener('click', redo);
+
+  document.onkeydown = handleShortcut;
+}
+
+function handleShortcut(event: KeyboardEvent): void {
+  const target = event.target as HTMLElement | null;
+  if (
+    target?.tagName === 'INPUT' ||
+    target?.tagName === 'TEXTAREA' ||
+    target?.tagName === 'SELECT' ||
+    target?.isContentEditable
+  ) {
+    return;
+  }
+
+  const key = event.key.toLowerCase();
+  if (/^[1-9]$/.test(key)) {
+    const roll = Number(key);
+    const { min, max } = diceRange();
+    if (roll >= min && roll <= max) {
+      event.preventDefault();
+      commitAction('Roll set to ' + roll + '. Read the top move.', () => {
+        state.roll = roll;
+      });
+    }
+    return;
+  }
+
+  if (event.key === 'Enter') {
+    const best = rankedMoves()[0];
+    if (best) {
+      event.preventDefault();
+      commitAction(
+        'Closed ' + moveMaskLabel(best.move.mask) + '. Roll cleared. Next: roll again.',
+        () => {
+          state.gameState &= ~best.move.mask;
+          state.roll = null;
+        },
+      );
+    }
+    return;
+  }
+
+  if (key === 'r') {
+    const roll = randomRoll();
+    event.preventDefault();
+    commitAction('Rolled ' + roll + '. Read the top move.', () => {
+      state.roll = roll;
+    });
+    return;
+  }
+
+  if (key === 'u' || event.key === 'Backspace') {
+    event.preventDefault();
+    undo();
+    return;
+  }
+
+  if (key === 'y' || (key === 'u' && event.shiftKey)) {
+    event.preventDefault();
+    redo();
+  }
 }
 
 window.addEventListener('popstate', () => {

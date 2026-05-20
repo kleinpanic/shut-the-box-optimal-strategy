@@ -218,6 +218,13 @@
   transform: translateY(-1px);
 }
 
+.button:disabled,
+.button[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.48;
+  transform: none;
+}
+
 .button:focus-visible,
 .roll-chip:focus-visible,
 .tile-button:focus-visible,
@@ -255,6 +262,34 @@
 }
 
 .workflow-panel {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1.4fr);
+  gap: 8px;
+}
+
+.workflow-focus {
+  min-height: 88px;
+  padding: 14px 15px;
+  border: 1px solid rgba(214, 166, 69, 0.62);
+  border-radius: 8px;
+  background: linear-gradient(145deg, rgba(241, 199, 91, 0.18), rgba(18, 26, 34, 0.94));
+  box-shadow: var(--tight-shadow);
+}
+
+.workflow-focus h2 {
+  margin: 3px 0 0;
+  font-size: 1.2rem;
+  line-height: 1.1;
+}
+
+.workflow-focus p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.workflow-steps {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
@@ -317,6 +352,17 @@
 .workflow-step.is-done > span {
   background: var(--felt);
   color: white;
+}
+
+.notice-panel {
+  padding: 11px 13px;
+  border: 1px solid rgba(52, 211, 153, 0.32);
+  border-radius: 8px;
+  background: rgba(8, 44, 37, 0.72);
+  color: #d9fff0;
+  box-shadow: var(--tight-shadow);
+  font-size: 0.9rem;
+  font-weight: 850;
 }
 
 .strategy-stage {
@@ -499,6 +545,18 @@
   grid-template-columns: repeat(9, minmax(0, 1fr));
   gap: clamp(7px, 0.9vw, 12px);
   margin-top: 16px;
+}
+
+.board-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.board-tools .button {
+  min-height: 34px;
+  padding-inline: 11px;
 }
 
 .tile-button {
@@ -729,6 +787,25 @@ input[type='number'] {
   margin-top: 12px;
 }
 
+.why-panel {
+  margin-top: 12px;
+  padding: 11px 12px;
+  border: 1px solid rgba(96, 165, 250, 0.26);
+  border-radius: 8px;
+  background: rgba(96, 165, 250, 0.08);
+}
+
+.why-panel summary {
+  cursor: pointer;
+  color: var(--blue);
+  font-weight: 950;
+}
+
+.why-panel p {
+  margin: 7px 0 0;
+  line-height: 1.45;
+}
+
 .table-caption {
   color: var(--muted);
   font-size: 0.72rem;
@@ -872,6 +949,18 @@ input[type='number'] {
 .dice-mode-option:disabled {
   cursor: not-allowed;
   opacity: 0.48;
+}
+
+.one-die-callout {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  border-radius: 8px;
+  background: rgba(52, 211, 153, 0.1);
+  color: #dbfff1;
+  font-size: 0.86rem;
+  font-weight: 850;
+  line-height: 1.35;
 }
 
 .switch-row {
@@ -1613,6 +1702,7 @@ input[type='number'] {
   }
 
   .play-primer,
+  .workflow-panel,
   .math-hero,
   .math-grid,
   .equation-stack {
@@ -1653,6 +1743,7 @@ input[type='number'] {
   }
 
   .workflow-panel,
+  .workflow-steps,
   .analysis-strip,
   .summary-panel,
   .guide-grid,
