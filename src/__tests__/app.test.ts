@@ -79,13 +79,14 @@ describe('strategy app shell', () => {
     );
   });
 
-  it('handles the one-die rule and random roll controls', async () => {
+  it('auto-suggests one die when eligible and keeps random roll controls in range', async () => {
     const app = await loadApp();
 
     click('[data-tile="7"]');
     click('[data-tile="8"]');
     click('[data-tile="9"]');
 
+    expect(app.textContent).toContain('Auto: 1 die suggested');
     expect(app.textContent).toContain('1d6 total');
     expect(document.querySelector('[data-roll="1"]')).not.toBeNull();
     expect(document.querySelector('[data-roll="12"]')).toBeNull();
@@ -97,6 +98,32 @@ describe('strategy app shell', () => {
 
     click('#clear-roll-btn');
     expect(document.querySelector<HTMLInputElement>('#dice-input')?.value).toBe('');
+  });
+
+  it('allows manual dice mode overrides when one die is legal', async () => {
+    const app = await loadApp();
+
+    expect(document.querySelector<HTMLButtonElement>('[data-dice-mode="one"]')?.disabled).toBe(
+      true,
+    );
+
+    click('[data-tile="7"]');
+    click('[data-tile="8"]');
+    click('[data-tile="9"]');
+
+    expect(document.querySelector<HTMLButtonElement>('[data-dice-mode="one"]')?.disabled).toBe(
+      false,
+    );
+
+    click('[data-dice-mode="two"]');
+    expect(app.textContent).toContain('Manual: 2 dice');
+    expect(app.textContent).toContain('2d6 total');
+    expect(document.querySelector('[data-roll="12"]')).not.toBeNull();
+
+    click('[data-dice-mode="one"]');
+    expect(app.textContent).toContain('Manual: 1 die');
+    expect(app.textContent).toContain('1d6 total');
+    expect(document.querySelector('[data-roll="12"]')).toBeNull();
   });
 
   it('generates two-dice random rolls before one-die eligibility', async () => {
@@ -125,13 +152,14 @@ describe('strategy app shell', () => {
 
     click('[data-tile="9"]');
     click('[data-objective="maximize_survival"]');
-    click('#one-die-toggle');
+    click('[data-dice-mode="two"]');
     click('[data-roll="7"]');
     click('#reset-btn');
 
     expect(app.textContent).toContain('Open tiles: 1, 2, 3, 4, 5, 6, 7, 8, 9');
     expect(app.textContent).toContain('Lowest score');
-    expect(document.querySelector<HTMLInputElement>('#one-die-toggle')?.checked).toBe(true);
+    expect(app.textContent).toContain('Auto: 2 dice');
+    expect(document.querySelector('[data-dice-mode="auto"]')?.className).toContain('is-active');
     expect(document.querySelector<HTMLInputElement>('#dice-input')?.value).toBe('');
   });
 

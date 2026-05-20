@@ -805,7 +805,8 @@ input[type='number'] {
   gap: 8px;
 }
 
-.objective-option {
+.objective-option,
+.dice-mode-option {
   display: grid;
   gap: 4px;
   width: 100%;
@@ -819,19 +820,58 @@ input[type='number'] {
   text-align: left;
 }
 
-.objective-option span {
+.objective-option span,
+.dice-mode-option span {
   font-weight: 950;
 }
 
-.objective-option small {
+.objective-option small,
+.dice-mode-option small {
   color: var(--muted);
   font-weight: 700;
 }
 
-.objective-option.is-active {
+.objective-option.is-active,
+.dice-mode-option.is-active {
   border-color: #a5cdb5;
   background: #eff8f2;
   box-shadow: inset 4px 0 0 var(--felt);
+}
+
+.dice-mode-control {
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.dice-mode-control strong,
+.dice-mode-control small {
+  display: block;
+}
+
+.dice-mode-control small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.dice-mode-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.dice-mode-option {
+  min-height: 64px;
+}
+
+.dice-mode-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 
 .switch-row {
@@ -1126,6 +1166,8 @@ input[type='number'] {
 .number-field input,
 .roll-chip,
 .objective-option,
+.dice-mode-control,
+.dice-mode-option,
 .switch-row,
 .metric-hero,
 .content-hero,
@@ -1303,6 +1345,12 @@ input[type='number'] {
   color: #a7f3d0;
 }
 
+.dice-mode-option.is-active {
+  border-color: rgba(52, 211, 153, 0.42);
+  background: rgba(24, 161, 111, 0.14);
+  color: #a7f3d0;
+}
+
 .status-badge.danger,
 .danger-state {
   border-color: rgba(248, 113, 113, 0.42);
@@ -1327,6 +1375,8 @@ input[type='number'] {
 .advisor-panel p,
 .muted,
 .objective-option small,
+.dice-mode-control small,
+.dice-mode-option small,
 .switch-row small,
 .content-hero p,
 .paper-panel p,
@@ -1606,6 +1656,7 @@ input[type='number'] {
   .analysis-strip,
   .summary-panel,
   .guide-grid,
+  .dice-mode-list,
   .definition-list div,
   .dice-proof {
     grid-template-columns: 1fr;

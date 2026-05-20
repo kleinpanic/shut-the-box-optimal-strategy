@@ -7,12 +7,13 @@ interface AppState {
   gameState: number;
   roll: number | null;
   objective: Objective;
-  useOneDie: boolean;
+  diceMode: DiceMode;
   page: AppPage;
 }
 
 const FULL_STATE = 0x1ff;
 type AppPage = 'play' | 'guide' | 'math';
+type DiceMode = 'auto' | 'two' | 'one';
 const PAGE_PATHS: Record<AppPage, string> = {
   play: '/',
   guide: '/how-to-use',
@@ -25,7 +26,7 @@ const state: AppState = {
   gameState: FULL_STATE,
   roll: null,
   objective: 'minimize_score',
-  useOneDie: true,
+  diceMode: 'auto',
   page: currentPage(),
 };
 
@@ -53,11 +54,16 @@ function canUseOneDie(gameState: number): boolean {
 }
 
 function activeOneDie(): boolean {
-  return state.useOneDie && canUseOneDie(state.gameState);
+  if (state.diceMode === 'two') return false;
+  return canUseOneDie(state.gameState);
 }
 
 function activeDp(): DPTables {
-  return state.useOneDie ? ONE_DICE_DP : TWO_DICE_DP;
+  return state.diceMode === 'two' ? TWO_DICE_DP : ONE_DICE_DP;
+}
+
+function policyAllowsOneDie(): boolean {
+  return state.diceMode !== 'two';
 }
 
 function diceRange(): { min: number; max: number; values: number[] } {
@@ -99,7 +105,7 @@ function moveLabel(move: RankedMove): string {
 
 function rankedMoves(): RankedMove[] {
   if (state.roll === null || state.gameState === 0) return [];
-  return getRankedMoves(state.gameState, state.roll, state.objective, state.useOneDie);
+  return getRankedMoves(state.gameState, state.roll, state.objective, policyAllowsOneDie());
 }
 
 function randomRoll(): number {
@@ -175,7 +181,7 @@ function playPage(ranked: RankedMove[]): string {
 
 function topBar(): string {
   const score = tileValue(state.gameState);
-  const rulesMode = state.useOneDie ? 'One-die rule on' : 'Two dice only';
+  const rulesMode = diceModeStatus();
   return [
     '<header class="top-bar">',
     '<div class="brand-mark" aria-hidden="true"><span>STB</span></div>',
@@ -192,6 +198,12 @@ function topBar(): string {
     '</div>',
     '</header>',
   ].join('');
+}
+
+function diceModeStatus(): string {
+  if (state.diceMode === 'two') return 'Manual: 2 dice';
+  if (state.diceMode === 'one') return activeOneDie() ? 'Manual: 1 die' : '1 die unavailable';
+  return activeOneDie() ? 'Auto: 1 die suggested' : 'Auto: 2 dice';
 }
 
 function pageNav(): string {
@@ -425,7 +437,7 @@ function dicePanel(): string {
     '<div class="section-heading tight"><div><span class="eyebrow">Dice</span>' +
       helpTag(
         '?',
-        'Use the total on the dice, not each die separately. The app changes to 1d6 only when the one-die rule is active and tiles 7-9 are closed.',
+        'Use the total on the dice, not each die separately. Auto mode suggests 1d6 after tiles 7-9 are closed; manual dice mode can override it.',
       ) +
       '<h2>' +
       modeLabel +
@@ -435,6 +447,7 @@ function dicePanel(): string {
         ? '<button id="clear-roll-btn" class="button button-quiet" type="button" title="Clear the selected dice total.">Clear</button>'
         : '') +
       '</div></div>',
+    diceModeControl(),
     '<label class="number-field"><span>Total</span><input id="dice-input" type="number" min="' +
       range.min +
       '" max="' +
@@ -605,8 +618,6 @@ function controlsPanel(): string {
       );
     })
     .join('');
-  const eligible = canUseOneDie(state.gameState);
-  const ruleStatus = state.useOneDie ? (eligible ? 'Active now' : 'Armed for later') : 'Off';
 
   return [
     '<section class="panel controls-panel" aria-label="Strategy controls">',
@@ -617,14 +628,59 @@ function controlsPanel(): string {
       ) +
       '<h2>Objective</h2></div></div>',
     '<div class="objective-list">' + objectives + '</div>',
-    '<label class="switch-row"><span><strong>One-die rule</strong><small>' +
-      ruleStatus +
-      '</small></span><input id="one-die-toggle" type="checkbox" ' +
-      (state.useOneDie ? 'checked' : '') +
-      ' /></label>',
     '<p class="line-help">Lowest score ranks by expected final points. Shut chance ranks by probability of score 0. Survival ranks by avoiding an immediate dead roll.</p>',
     '</section>',
   ].join('');
+}
+
+function diceModeControl(): string {
+  const eligible = canUseOneDie(state.gameState);
+  const modes: Array<{ mode: DiceMode; label: string; detail: string; disabled?: boolean }> = [
+    {
+      mode: 'auto',
+      label: 'Auto',
+      detail: eligible ? 'Suggests 1 die now' : 'Uses 2 dice until 7-9 close',
+    },
+    {
+      mode: 'two',
+      label: 'Two dice',
+      detail: 'Force 2d6 totals',
+    },
+    {
+      mode: 'one',
+      label: 'One die',
+      detail: eligible ? 'Manual 1d6 totals' : 'Available after 7-9 close',
+      disabled: !eligible,
+    },
+  ];
+
+  return (
+    '<div class="dice-mode-control" aria-label="Dice mode control"><div><strong>Dice mode</strong><small>' +
+    diceModeStatus() +
+    '</small></div><div class="dice-mode-list">' +
+    modes
+      .map(({ mode, label, detail, disabled }) => {
+        const active = state.diceMode === mode ? ' is-active' : '';
+        const disabledAttr = disabled ? ' disabled aria-disabled="true"' : '';
+        return (
+          '<button class="dice-mode-option' +
+          active +
+          '" type="button" data-dice-mode="' +
+          mode +
+          '"' +
+          disabledAttr +
+          ' title="' +
+          detail +
+          '"><span>' +
+          label +
+          '</span><small>' +
+          detail +
+          '</small></button>'
+        );
+      })
+      .join('') +
+    '</div></div>'
+  );
 }
 
 function metricsPanel(): string {
@@ -710,9 +766,7 @@ function rulesPanel(): string {
     '<div class="rule-line"><span>Current dice</span><strong>' +
       (activeOneDie() ? '1d6' : '2d6') +
       '</strong></div>',
-    '<div class="rule-line"><span>Policy table</span><strong>' +
-      (state.useOneDie ? 'one-die eligible' : 'two dice') +
-      '</strong></div>',
+    '<div class="rule-line"><span>Dice mode</span><strong>' + diceModeStatus() + '</strong></div>',
     '</section>',
   ].join('');
 }
@@ -742,7 +796,7 @@ function guidePage(): string {
     guideCard(
       '2',
       'Enter the dice total',
-      'Use the sum of the dice. With two dice, valid totals are 2-12. With the one-die rule active, valid totals are 1-6.',
+      'Use the sum of the dice. Auto mode uses 2-12 until tiles 7-9 close, then suggests 1-6. You can force two dice or manually choose one die.',
     ),
     guideCard(
       '3',
@@ -761,7 +815,7 @@ function guidePage(): string {
     '<div><strong>EV</strong><span>Expected final score from the board after making the move. Lower is better.</span></div>',
     '<div><strong>P(shut)</strong><span>Probability of eventually closing every tile from that board. Higher is better.</span></div>',
     '<div><strong>P(survive)</strong><span>Probability that the next roll has at least one legal move. Higher means less immediate risk.</span></div>',
-    '<div><strong>One-die rule</strong><span>If enabled, the app switches to one die only after tiles 7, 8, and 9 are closed.</span></div>',
+    '<div><strong>Dice mode</strong><span>Auto suggests one die after tiles 7, 8, and 9 are closed. You can also force two dice or manually select one die when legal.</span></div>',
     '</div>',
     '</section>',
     '</main>',
@@ -865,7 +919,7 @@ function attach(): void {
     state.gameState = FULL_STATE;
     state.roll = null;
     state.objective = 'minimize_score';
-    state.useOneDie = true;
+    state.diceMode = 'auto';
     render();
   });
 
@@ -876,9 +930,11 @@ function attach(): void {
     });
   });
 
-  document.getElementById('one-die-toggle')?.addEventListener('change', (event) => {
-    state.useOneDie = (event.currentTarget as HTMLInputElement).checked;
-    render();
+  document.querySelectorAll<HTMLButtonElement>('[data-dice-mode]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.diceMode = button.dataset.diceMode as DiceMode;
+      render();
+    });
   });
 
   document.querySelectorAll<HTMLButtonElement>('[data-roll]').forEach((button) => {
