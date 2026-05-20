@@ -8,15 +8,18 @@ interface AppState {
   roll: number | null;
   objective: Objective;
   useOneDie: boolean;
+  page: AppPage;
 }
 
 const FULL_STATE = 0x1ff;
+type AppPage = 'play' | 'guide' | 'math';
 
 const state: AppState = {
   gameState: FULL_STATE,
   roll: null,
   objective: 'minimize_score',
   useOneDie: true,
+  page: 'play',
 };
 
 const objectiveMeta: Record<Objective, { label: string; shortLabel: string; description: string }> =
@@ -105,9 +108,17 @@ function render(): void {
 
 function buildApp(): string {
   const ranked = rankedMoves();
+  return ['<div class="app-shell">', topBar(), pageBody(ranked), '</div>'].join('');
+}
+
+function pageBody(ranked: RankedMove[]): string {
+  if (state.page === 'guide') return guidePage();
+  if (state.page === 'math') return mathPage();
+  return playPage(ranked);
+}
+
+function playPage(ranked: RankedMove[]): string {
   return [
-    '<div class="app-shell">',
-    topBar(),
     '<main class="app-layout">',
     workflowPanel(ranked),
     '<section class="strategy-stage" aria-label="Optimal move workspace">',
@@ -127,7 +138,6 @@ function buildApp(): string {
     rulesPanel(),
     '</section>',
     '</main>',
-    '</div>',
   ].join('');
 }
 
@@ -138,6 +148,7 @@ function topBar(): string {
     '<header class="top-bar">',
     '<div class="brand-mark" aria-hidden="true"><span>STB</span></div>',
     '<div class="brand-copy"><h1>Shut the Box</h1><p>Optimal strategy app</p></div>',
+    pageNav(),
     '<div class="top-actions">',
     '<div class="score-pill ' +
       scoreTone(score) +
@@ -145,10 +156,52 @@ function topBar(): string {
       score +
       '</strong></div>',
     '<div class="mode-pill">' + rulesMode + '</div>',
-    '<button id="reset-btn" class="button button-quiet" type="button">New game</button>',
+    '<button id="reset-btn" class="button button-quiet" type="button" title="Reset the board to all tiles open and clear the roll.">New game</button>',
     '</div>',
     '</header>',
   ].join('');
+}
+
+function pageNav(): string {
+  const pages: Array<[AppPage, string]> = [
+    ['play', 'Play'],
+    ['guide', 'How to use'],
+    ['math', 'Math'],
+  ];
+  return (
+    '<nav class="page-nav" aria-label="Primary pages">' +
+    pages
+      .map(([page, label]) => {
+        const active = state.page === page ? ' is-active' : '';
+        return (
+          '<button class="nav-tab' +
+          active +
+          '" type="button" data-page="' +
+          page +
+          '" aria-pressed="' +
+          (state.page === page) +
+          '">' +
+          label +
+          '</button>'
+        );
+      })
+      .join('') +
+    '</nav>'
+  );
+}
+
+function helpTag(label: string, tooltip: string): string {
+  return (
+    '<span class="help-tag" tabindex="0" role="note" title="' +
+    tooltip +
+    '" aria-label="' +
+    label +
+    ': ' +
+    tooltip +
+    '">' +
+    label +
+    '</span>'
+  );
 }
 
 function workflowPanel(ranked: RankedMove[]): string {
@@ -189,6 +242,8 @@ function workflowPanel(ranked: RankedMove[]): string {
         (step, index) =>
           '<div class="workflow-step is-' +
           step.state +
+          '" title="' +
+          workflowHelp(index) +
           '"><span>' +
           (index + 1) +
           '</span><div><strong>' +
@@ -200,6 +255,15 @@ function workflowPanel(ranked: RankedMove[]): string {
       .join('') +
     '</section>'
   );
+}
+
+function workflowHelp(index: number): string {
+  return [
+    'Click tiles until the open board matches the physical game.',
+    'Enter or tap the dice total you rolled.',
+    'The top recommendation is ranked by the selected objective.',
+    'Apply best closes the recommended tiles and advances the board.',
+  ][index];
 }
 
 function gameSummary(ranked: RankedMove[]): string {
@@ -218,7 +282,12 @@ function gameSummary(ranked: RankedMove[]): string {
 
   return [
     '<section class="summary-panel" aria-label="Current game state">',
-    '<div><span class="eyebrow">Current position</span><h2>' +
+    '<div><span class="eyebrow">Current position</span>' +
+      helpTag(
+        '?',
+        'This is the current board plus the selected dice total. Follow the large instruction first.',
+      ) +
+      '<h2>' +
       status +
       '</h2><p>' +
       openLabel +
@@ -250,7 +319,9 @@ function tileBoard(ranked: RankedMove[]): string {
       classes +
       '" type="button" data-tile="' +
       tile +
-      '" aria-label="' +
+      '" title="Toggle tile ' +
+      tile +
+      ' open or closed." aria-label="' +
       label +
       '"><span>' +
       tile +
@@ -264,6 +335,7 @@ function tileBoard(ranked: RankedMove[]): string {
     boardBadge(ranked),
     '</div>',
     '<div class="tile-row">' + tiles + '</div>',
+    '<p class="line-help inverted">Tap a tile to mark it open or closed. Yellow outlined tiles are the current best move.</p>',
     '</section>',
   ].join('');
 }
@@ -287,6 +359,8 @@ function dicePanel(): string {
         active +
         '" type="button" data-roll="' +
         value +
+        '" title="Set the dice total to ' +
+        value +
         '" aria-label="Set dice total ' +
         value +
         '">' +
@@ -298,12 +372,17 @@ function dicePanel(): string {
 
   return [
     '<section class="panel dice-panel" aria-label="Dice controls">',
-    '<div class="section-heading tight"><div><span class="eyebrow">Dice</span><h2>' +
+    '<div class="section-heading tight"><div><span class="eyebrow">Dice</span>' +
+      helpTag(
+        '?',
+        'Use the total on the dice, not each die separately. The app changes to 1d6 only when the one-die rule is active and tiles 7-9 are closed.',
+      ) +
+      '<h2>' +
       modeLabel +
       ' total</h2></div>',
-    '<div class="panel-actions"><button id="random-roll-btn" class="button button-primary" type="button">Roll</button>' +
+    '<div class="panel-actions"><button id="random-roll-btn" class="button button-primary" type="button" title="Generate a random legal dice total for the current dice mode.">Roll</button>' +
       (state.roll !== null
-        ? '<button id="clear-roll-btn" class="button button-quiet" type="button">Clear</button>'
+        ? '<button id="clear-roll-btn" class="button button-quiet" type="button" title="Clear the selected dice total.">Clear</button>'
         : '') +
       '</div></div>',
     '<label class="number-field"><span>Total</span><input id="dice-input" type="number" min="' +
@@ -319,6 +398,7 @@ function dicePanel(): string {
       '" /></label>',
     '<div class="roll-grid">' + chips + '</div>',
     '<div class="dice-footer">' + diceVisual() + '</div>',
+    '<p class="line-help">Pick the total first. Legal moves appear immediately in the move advisor.</p>',
     '</section>',
   ].join('');
 }
@@ -370,7 +450,12 @@ function advisorPanel(ranked: RankedMove[]): string {
   if (state.roll === null) {
     return [
       '<section class="panel advisor-panel" aria-label="Move advisor">',
-      '<span class="eyebrow">Move advisor</span><h2>Pick a dice total</h2>',
+      '<span class="eyebrow">Move advisor</span>' +
+        helpTag(
+          '?',
+          'The advisor compares every legal tile combination that sums to the selected roll.',
+        ) +
+        '<h2>Pick a dice total</h2>',
       '<p class="muted">Objective: ' +
         objectiveMeta[state.objective].shortLabel +
         '. Legal moves rank as soon as a total is selected.</p>',
@@ -382,7 +467,12 @@ function advisorPanel(ranked: RankedMove[]): string {
     const score = tileValue(state.gameState);
     return [
       '<section class="panel advisor-panel danger-state" aria-label="Move advisor">',
-      '<span class="eyebrow">Move advisor</span><h2>No legal move</h2><p>Final score: ' +
+      '<span class="eyebrow">Move advisor</span>' +
+        helpTag(
+          '?',
+          'No open tile combination sums to this roll, so the turn ends with the displayed score.',
+        ) +
+        '<h2>No legal move</h2><p>Final score: ' +
         score +
         '.</p>',
       '</section>',
@@ -398,7 +488,7 @@ function advisorPanel(ranked: RankedMove[]): string {
       '</h2></div>',
     '<button class="button button-primary" type="button" data-move-mask="' +
       best.move.mask +
-      '">Apply best</button></div>',
+      '" title="Close the recommended tile combination on the board.">Apply best</button></div>',
     '<div class="best-move-card"><div><span class="rank-label">Optimal</span><strong>' +
       best.explanation +
       '</strong><p>' +
@@ -433,7 +523,9 @@ function moveExplanation(rankedMove: RankedMove): string {
 
 function moveRow(rankedMove: RankedMove, index: number): string {
   return [
-    '<button class="move-row" type="button" data-move-mask="' + rankedMove.move.mask + '">',
+    '<button class="move-row" type="button" data-move-mask="' +
+      rankedMove.move.mask +
+      '" title="Apply this alternative move.">',
     '<span class="move-rank">' + (index + 2) + '</span>',
     '<span>Close ' + moveLabel(rankedMove) + '</span>',
     '<strong>' + rankedMove.explanation + '</strong>',
@@ -453,6 +545,8 @@ function controlsPanel(): string {
         active +
         '" type="button" data-objective="' +
         objective +
+        '" title="' +
+        meta.description +
         '"><span>' +
         meta.label +
         '</span><small>' +
@@ -466,13 +560,19 @@ function controlsPanel(): string {
 
   return [
     '<section class="panel controls-panel" aria-label="Strategy controls">',
-    '<div class="section-heading tight"><div><span class="eyebrow">Strategy</span><h2>Objective</h2></div></div>',
+    '<div class="section-heading tight"><div><span class="eyebrow">Strategy</span>' +
+      helpTag(
+        '?',
+        'Change the objective when you care about a different kind of optimal play. Lowest score is the default scoring strategy.',
+      ) +
+      '<h2>Objective</h2></div></div>',
     '<div class="objective-list">' + objectives + '</div>',
     '<label class="switch-row"><span><strong>One-die rule</strong><small>' +
       ruleStatus +
       '</small></span><input id="one-die-toggle" type="checkbox" ' +
       (state.useOneDie ? 'checked' : '') +
       ' /></label>',
+    '<p class="line-help">Lowest score ranks by expected final points. Shut chance ranks by probability of score 0. Survival ranks by avoiding an immediate dead roll.</p>',
     '</section>',
   ].join('');
 }
@@ -487,7 +587,11 @@ function metricsPanel(): string {
   ];
   return [
     '<section class="panel metrics-panel" aria-label="State analysis">',
-    '<span class="eyebrow">State analysis</span>',
+    '<span class="eyebrow">State analysis</span>' +
+      helpTag(
+        '?',
+        'These numbers describe the current board before choosing the next move. They update after every tile, roll, and objective change.',
+      ),
     '<div class="metric-hero ' +
       scoreTone(score) +
       '"><span>Open score</span><strong>' +
@@ -500,6 +604,7 @@ function metricsPanel(): string {
       )
       .join(''),
     '</div>',
+    '<p class="line-help">Expected final score is lower-is-better. The two percentages are higher-is-better.</p>',
     '</section>',
   ].join('');
 }
@@ -528,7 +633,12 @@ function probabilityPanel(): string {
     .join('');
   return [
     '<section class="panel probability-panel" aria-label="Dice probability distribution">',
-    '<div class="section-heading tight"><div><span class="eyebrow">Dice odds</span><h2>' +
+    '<div class="section-heading tight"><div><span class="eyebrow">Dice odds</span>' +
+      helpTag(
+        '?',
+        'Bars show the probability of each possible total. Two dice peak at 7; one die is uniform.',
+      ) +
+      '<h2>' +
       (oneDie ? 'One die' : 'Two dice') +
       '</h2></div></div>',
     '<div class="probability-chart">' + bars + '</div>',
@@ -539,7 +649,11 @@ function probabilityPanel(): string {
 function rulesPanel(): string {
   return [
     '<section class="panel rules-panel" aria-label="Rules variant">',
-    '<span class="eyebrow">Rules variant</span>',
+    '<span class="eyebrow">Rules variant</span>' +
+      helpTag(
+        '?',
+        'The active policy table controls whether the dynamic program assumes two dice only or allows one die once 7-9 are closed.',
+      ),
     '<div class="rule-line"><span>High tiles</span><strong>' +
       (canUseOneDie(state.gameState) ? '1-6 only' : '7-9 open') +
       '</strong></div>',
@@ -553,7 +667,92 @@ function rulesPanel(): string {
   ].join('');
 }
 
+function guidePage(): string {
+  return [
+    '<main class="content-page" aria-label="How to use the strategy app">',
+    '<section class="content-hero">',
+    '<span class="eyebrow">Manual</span><h2>How to use the advisor</h2>',
+    '<p>Use the app as a turn-by-turn assistant beside a real Shut the Box board. Match the board, enter the roll, then apply the recommended move.</p>',
+    '</section>',
+    '<section class="guide-grid">',
+    guideCard(
+      '1',
+      'Match the board',
+      'Open tiles are bright. Closed tiles are dark with a strike-through. Tap any tile if the app does not match the physical board.',
+    ),
+    guideCard(
+      '2',
+      'Enter the dice total',
+      'Tap a quick total, type the number, or use Roll for a simulated value. The valid range changes between 2d6 and 1d6.',
+    ),
+    guideCard(
+      '3',
+      'Choose an objective',
+      'Lowest score is standard play. Shut chance is aggressive for score 0. Survival avoids immediate dead-roll risk.',
+    ),
+    guideCard(
+      '4',
+      'Apply a move',
+      'The advisor highlights the best tiles in yellow. Apply best closes them; alternative rows are also clickable.',
+    ),
+    '</section>',
+    '<section class="paper-panel">',
+    '<h3>Reading the numbers</h3>',
+    '<div class="definition-list">',
+    '<div><strong>EV</strong><span>Expected final score from the board after making the move. Lower is better.</span></div>',
+    '<div><strong>P(shut)</strong><span>Probability of eventually closing every tile from that board. Higher is better.</span></div>',
+    '<div><strong>P(survive)</strong><span>Probability that the next roll has at least one legal move. Higher means less immediate risk.</span></div>',
+    '<div><strong>One-die rule</strong><span>If enabled, the app switches to one die only after tiles 7, 8, and 9 are closed.</span></div>',
+    '</div>',
+    '</section>',
+    '</main>',
+  ].join('');
+}
+
+function guideCard(step: string, title: string, body: string): string {
+  return (
+    '<article class="guide-card"><span>' +
+    step +
+    '</span><h3>' +
+    title +
+    '</h3><p>' +
+    body +
+    '</p></article>'
+  );
+}
+
+function mathPage(): string {
+  return [
+    '<main class="content-page math-page" aria-label="Math behind the optimal strategy">',
+    '<article class="paper-panel math-paper">',
+    '<span class="eyebrow">Math paper</span><h2>Dynamic programming model</h2>',
+    '<p>Each board is encoded as a 9-bit state. Bit i is set when tile i + 1 is open. The full board is 0x1FF, and the shut board is 0.</p>',
+    '<h3>Legal moves</h3>',
+    '<p>For a state s and roll r, the legal move set M(s, r) contains every non-empty subset of open tiles whose tile values sum to r. Applying move m gives the next state s &amp; ~m.</p>',
+    '<h3>Expected-score objective</h3>',
+    '<pre><code>V_score(0) = 0\nV_score(s) = sum_r p(r) * terminal_or_best(s, r)\nterminal_or_best(s, r) = score(s)              if M(s,r) is empty\n                       = min_m V_score(s &amp; ~m) otherwise</code></pre>',
+    '<h3>Shut-probability objective</h3>',
+    '<pre><code>V_shut(0) = 1\nV_shut(s) = sum_r p(r) * terminal_or_best(s, r)\nterminal_or_best(s, r) = 0                     if M(s,r) is empty\n                       = max_m V_shut(s &amp; ~m)  otherwise</code></pre>',
+    '<h3>Survival objective</h3>',
+    '<p>Survival is the probability that the next roll has at least one legal move. The app ranks a candidate move by the survival probability of its resulting board.</p>',
+    '<pre><code>V_survive(s) = sum_r p(r) * I[M(s,r) is not empty]</code></pre>',
+    '<h3>Why bottom-up works</h3>',
+    '<p>Every legal move closes at least one open tile, so s &amp; ~m is always a smaller bitmask than s. Computing states from 0 through 511 means every child state is already known.</p>',
+    '<h3>Dice distributions</h3>',
+    '<p>Two-dice probabilities use the exact 36 equally likely ordered outcomes. One-die probabilities use six equally likely outcomes. With the one-die rule enabled, states with tiles 7-9 closed use the one-die table.</p>',
+    '</article>',
+    '</main>',
+  ].join('');
+}
+
 function attach(): void {
+  document.querySelectorAll<HTMLButtonElement>('[data-page]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.page = button.dataset.page as AppPage;
+      render();
+    });
+  });
+
   document.getElementById('reset-btn')?.addEventListener('click', () => {
     state.gameState = FULL_STATE;
     state.roll = null;
