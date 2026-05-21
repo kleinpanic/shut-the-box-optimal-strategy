@@ -34,7 +34,7 @@ const state: AppState = {
   roll: null,
   objective: 'minimize_score',
   diceMode: 'auto',
-  helpMode: 'guided',
+  helpMode: 'compact',
   ...savedState,
   page: currentPage(),
 };
@@ -165,7 +165,7 @@ function loadSavedState(): Snapshot | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as unknown;
     if (!isValidSnapshot(parsed)) return null;
-    return { ...parsed, helpMode: parsed.helpMode ?? 'guided' };
+    return { ...parsed, helpMode: parsed.helpMode ?? 'compact' };
   } catch {
     return null;
   }
@@ -260,8 +260,7 @@ function pageBody(ranked: RankedMove[]): string {
 function playPage(ranked: RankedMove[]): string {
   return [
     '<main class="app-layout ' + (state.helpMode === 'compact' ? 'is-compact' : 'is-guided') + '">',
-    viewModeSwitch(),
-    state.helpMode === 'guided' ? playPrimer() : compactPrimer(),
+    state.helpMode === 'guided' ? viewModeSwitch() + playPrimer() : '',
     state.helpMode === 'guided' ? workflowPanel(ranked) : '',
     noticePanel(),
     '<section class="strategy-stage" aria-label="Optimal move workspace">',
@@ -329,7 +328,7 @@ function topBar(): string {
   return [
     '<header class="top-bar">',
     '<div class="brand-mark" aria-hidden="true"><span>STB</span></div>',
-    '<div class="brand-copy"><h1>Shut the Box</h1><p>Optimal strategy app</p></div>',
+    '<div class="brand-copy"><h1>Shut the Box</h1><p>Move helper</p></div>',
     pageNav(),
     '<div class="top-actions">',
     '<div class="score-pill ' +
@@ -344,16 +343,6 @@ function topBar(): string {
     '<button id="reset-btn" class="button button-quiet" type="button" title="Reset the board to all tiles open and clear the roll.">New game</button>',
     '</div>',
     '</header>',
-  ].join('');
-}
-
-function compactPrimer(): string {
-  return [
-    '<section class="compact-bar" aria-label="Compact play controls">',
-    '<strong>Board first.</strong>',
-    '<span>Match tiles, enter roll, apply highlighted move.</span>',
-    '<button id="restore-guidance-btn" class="button button-quiet" type="button">Show help</button>',
-    '</section>',
   ].join('');
 }
 
@@ -415,9 +404,9 @@ function playPrimer(): string {
     '<div><span class="eyebrow">Start here</span><h2>Use it like a sidecar scorekeeper</h2>',
     '<p>Do these in order: match the open tiles, enter the dice total, read the top recommendation, then apply the move.</p></div>',
     '<ol>',
-    '<li><strong>Board</strong><span>Bright tiles are open. Tap a tile when your real board differs.</span></li>',
+    '<li><strong>Board</strong><span>Bright tiles are still up. Tap any tile that is already down.</span></li>',
     '<li><strong>Roll</strong><span>Enter the total shown on the dice, not each die separately.</span></li>',
-    '<li><strong>Move</strong><span>The green recommendation is the best move for the selected objective.</span></li>',
+    '<li><strong>Move</strong><span>The highlighted tiles are the recommendation to close.</span></li>',
     '</ol>',
     '</section>',
   ].join('');
@@ -531,7 +520,8 @@ function gameSummary(ranked: RankedMove[]): string {
         : best
           ? 'Close ' + moveLabel(best)
           : 'No legal move';
-  const openLabel = open.length === 0 ? 'No tiles remain open.' : 'Open tiles: ' + open.join(', ');
+  const openLabel =
+    open.length === 0 ? 'No tiles remain up.' : 'Tiles still up: ' + open.join(', ');
 
   return [
     '<section class="summary-panel" aria-label="Current game state">',
@@ -566,7 +556,7 @@ function tileBoard(ranked: RankedMove[]): string {
     const classes = ['tile-button', isOpen ? 'is-open' : 'is-closed', isOptimal ? 'is-optimal' : '']
       .filter(Boolean)
       .join(' ');
-    const label = isOpen ? 'Tile ' + tile + ' open' : 'Tile ' + tile + ' closed';
+    const label = isOpen ? 'Tile ' + tile + ' still up' : 'Tile ' + tile + ' already down';
     return (
       '<button class="' +
       classes +
@@ -584,12 +574,12 @@ function tileBoard(ranked: RankedMove[]): string {
 
   return [
     '<section class="board-panel" aria-label="Tile board">',
-    '<div class="section-heading"><div><span class="eyebrow">Board</span><h2>Open tiles</h2></div>',
+    '<div class="section-heading"><div><span class="eyebrow">1. Match your box</span><h2>Tiles still up</h2></div>',
     boardBadge(ranked),
     '</div>',
     boardTools(),
     '<div class="tile-row">' + tiles + '</div>',
-    '<p class="line-help inverted">Tap a tile to mark it open or closed. Yellow outlined tiles are the current best move.</p>',
+    '<p class="line-help inverted">Tap tiles that are already down on your real board. Highlighted tiles are the move to close.</p>',
     '</section>',
   ].join('');
 }
@@ -597,8 +587,8 @@ function tileBoard(ranked: RankedMove[]): string {
 function boardTools(): string {
   return [
     '<div class="board-tools" aria-label="Board shortcuts">',
-    '<button id="all-open-btn" class="button button-quiet" type="button" title="Set every tile to open.">All open</button>',
-    '<button id="clear-high-btn" class="button button-quiet" type="button" title="Close tiles 7, 8, and 9 to unlock one-die play.">Clear 7-9</button>',
+    '<button id="all-open-btn" class="button button-quiet" type="button" title="Set every tile to still up.">All up</button>',
+    '<button id="clear-high-btn" class="button button-quiet" type="button" title="Mark tiles 7, 8, and 9 as already down.">7-9 down</button>',
     '<button id="demo-turn-btn" class="button button-quiet" type="button" title="Load a sample board and roll.">Demo turn</button>',
     '<button id="undo-btn" class="button button-quiet" type="button" ' +
       (undoStack.length === 0 ? 'disabled aria-disabled="true"' : '') +
@@ -614,7 +604,7 @@ function boardBadge(ranked: RankedMove[]): string {
   if (state.gameState === 0) return '<span class="status-badge success">Shut</span>';
   if (state.roll !== null && ranked.length === 0)
     return '<span class="status-badge danger">No move</span>';
-  if (ranked[0]) return '<span class="status-badge good">Best move marked</span>';
+  if (ranked[0]) return '<span class="status-badge good">Close marked tiles</span>';
   return '<span class="status-badge neutral">Ready</span>';
 }
 
@@ -642,14 +632,16 @@ function dicePanel(): string {
 
   return [
     '<section class="panel dice-panel" aria-label="Dice controls">',
-    '<div class="section-heading tight"><div><span class="eyebrow">Dice</span>' +
+    '<div class="section-heading tight"><div><span class="eyebrow">2. Enter roll</span>' +
       helpTag(
         '?',
         'Use the total on the dice, not each die separately. Auto mode suggests 1d6 after tiles 7-9 are closed; manual dice mode can override it.',
       ) +
       '<h2>' +
+      (state.roll === null ? 'What did you roll?' : 'Roll ' + state.roll) +
+      '</h2><p class="panel-subtitle">' +
       modeLabel +
-      ' total</h2></div>',
+      ' totals</p></div>',
     '<div class="panel-actions"><button id="random-roll-btn" class="button button-primary" type="button" title="Generate a random legal dice total for the current dice mode.">Roll</button>' +
       (state.roll !== null
         ? '<button id="clear-roll-btn" class="button button-quiet" type="button" title="Clear the selected dice total.">Clear</button>'
@@ -670,7 +662,7 @@ function dicePanel(): string {
       '" /></label>',
     '<div class="roll-grid">' + chips + '</div>',
     '<div class="dice-footer">' + diceVisual() + '</div>',
-    '<p class="line-help">Pick the total first. Legal moves appear immediately in the move advisor.</p>',
+    '<p class="line-help">Tap the dice total. The best move appears on the right.</p>',
     '</section>',
   ].join('');
 }
@@ -725,7 +717,7 @@ function advisorPanel(ranked: RankedMove[]): string {
   if (state.gameState === 0) {
     return [
       '<section class="panel advisor-panel win-state" aria-label="Move advisor">',
-      '<span class="eyebrow">Move advisor</span><h2>Box shut</h2><p>Final score: 0.</p>',
+      '<span class="eyebrow">3. Best move</span><h2>Box shut</h2><p>Final score: 0.</p>',
       '</section>',
     ].join('');
   }
@@ -733,15 +725,13 @@ function advisorPanel(ranked: RankedMove[]): string {
   if (state.roll === null) {
     return [
       '<section class="panel advisor-panel" aria-label="Move advisor">',
-      '<span class="eyebrow">Move advisor</span>' +
+      '<span class="eyebrow">3. Best move</span>' +
         helpTag(
           '?',
           'The advisor compares every legal tile combination that sums to the selected roll.',
         ) +
-        '<h2>Pick a dice total</h2>',
-      '<p class="muted">Objective: ' +
-        objectiveMeta[state.objective].shortLabel +
-        '. Legal moves rank as soon as a total is selected.</p>',
+        '<h2>Waiting for roll</h2>',
+      '<p class="muted">Tap the number you rolled. The tiles to close will light up.</p>',
       '</section>',
     ].join('');
   }
@@ -750,7 +740,7 @@ function advisorPanel(ranked: RankedMove[]): string {
     const score = tileValue(state.gameState);
     return [
       '<section class="panel advisor-panel danger-state" aria-label="Move advisor">',
-      '<span class="eyebrow">Move advisor</span>' +
+      '<span class="eyebrow">3. Best move</span>' +
         helpTag(
           '?',
           'No open tile combination sums to this roll, so the turn ends with the displayed score.',
@@ -766,12 +756,12 @@ function advisorPanel(ranked: RankedMove[]): string {
   const alternatives = ranked.slice(1, 5).map(moveRow).join('');
   return [
     '<section class="panel advisor-panel" aria-label="Move advisor">',
-    '<div class="section-heading tight"><div><span class="eyebrow">Move advisor</span><h2>Close ' +
+    '<div class="section-heading tight"><div><span class="eyebrow">3. Best move</span><h2>Close ' +
       moveLabel(best) +
       '</h2></div>',
     '<button class="button button-primary" type="button" data-move-mask="' +
       best.move.mask +
-      '" title="Close the recommended tile combination on the board.">Apply best</button></div>',
+      '" title="Mark the recommended tiles as down.">Close these tiles</button></div>',
     '<div class="best-move-card"><div><span class="rank-label">Optimal</span><strong>' +
       best.explanation +
       '</strong><p>' +
@@ -1163,9 +1153,10 @@ function attach(): void {
     state.roll = null;
     state.objective = 'minimize_score';
     state.diceMode = 'auto';
+    state.helpMode = 'compact';
     undoStack = [];
     redoStack = [];
-    lastNotice = 'New game loaded. Match the board, then enter a roll.';
+    lastNotice = 'New game loaded. Mark tiles that are down, then enter your roll.';
     saveState();
     render();
   });
@@ -1245,21 +1236,21 @@ function attach(): void {
   });
 
   document.getElementById('all-open-btn')?.addEventListener('click', () => {
-    commitAction('All tiles opened. Enter a roll when the board matches.', () => {
+    commitAction('All tiles set up. Enter your roll when the box matches.', () => {
       state.gameState = FULL_STATE;
       state.roll = null;
     });
   });
 
   document.getElementById('clear-high-btn')?.addEventListener('click', () => {
-    commitAction('Closed 7 + 8 + 9. One die is now available.', () => {
+    commitAction('Marked 7 + 8 + 9 down. One die is now available.', () => {
       state.gameState &= ~HIGH_TILES_MASK;
       state.roll = null;
     });
   });
 
   document.getElementById('demo-turn-btn')?.addEventListener('click', () => {
-    commitAction('Demo turn loaded: roll 7, then compare and apply the recommendation.', () => {
+    commitAction('Demo loaded: roll 7, then close the highlighted tiles.', () => {
       state.gameState = FULL_STATE;
       state.roll = 7;
       state.objective = 'minimize_score';
@@ -1281,7 +1272,7 @@ function setHelpMode(mode: HelpMode): void {
   state.helpMode = mode;
   lastNotice =
     state.helpMode === 'compact'
-      ? 'Compact mode on. Big help blocks are hidden.'
+      ? 'Game view on. Board, roll, and best move are first.'
       : 'Guidance restored. Help blocks are visible.';
   saveState();
   render();

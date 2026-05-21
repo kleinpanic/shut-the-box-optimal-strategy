@@ -48,14 +48,28 @@ describe('strategy app shell', () => {
   it('renders the play page with clear onboarding and real help text', async () => {
     const app = await loadApp();
 
+    expect(app.textContent).toContain('Tiles still up');
+    expect(app.textContent).toContain('What did you roll?');
+    expect(app.textContent).toContain('Waiting for roll');
+    expect(document.querySelector('.app-layout')?.className).toContain('is-compact');
+    expect(document.querySelector('.play-primer')).toBeNull();
+    expect(document.querySelector('#help-mode-btn')?.textContent).toContain('Show help');
+    expect(document.querySelector('[data-page="play"]')?.getAttribute('aria-current')).toBe('page');
+  });
+
+  it('can open full help with onboarding and real help text', async () => {
+    const app = await loadApp();
+
+    click('#help-mode-btn');
+
     expect(app.textContent).toContain('Use it like a sidecar scorekeeper');
     expect(app.textContent).toContain('Full help');
     expect(app.textContent).toContain('Compact board');
     expect(app.textContent).toContain('Guided turn mode');
     expect(app.textContent).toContain('Next step: enter the roll');
     expect(app.textContent).toContain('Choose a dice total');
-    expect(app.textContent).toContain('Bright tiles are open');
-    expect(app.textContent).toContain('All open');
+    expect(app.textContent).toContain('Bright tiles are still up');
+    expect(app.textContent).toContain('All up');
     expect(app.textContent).toContain('Demo turn');
     expect(document.querySelectorAll('.help-tag').length).toBeGreaterThanOrEqual(6);
     expect(document.querySelector('.help-tag')?.getAttribute('data-tip')).toContain(
@@ -67,12 +81,11 @@ describe('strategy app shell', () => {
   it('toggles and persists compact returning-player mode', async () => {
     let app = await loadApp();
 
+    click('#help-mode-btn');
     expect(document.querySelector('#help-mode-btn')?.textContent).toContain('Hide help');
-    click('[data-help-mode="compact"]');
+    click('#help-mode-btn');
 
-    expect(app.textContent).toContain('Compact mode on');
-    expect(app.textContent).toContain('Compact board');
-    expect(app.textContent).toContain('Board first.');
+    expect(app.textContent).toContain('Game view on');
     expect(app.textContent).toContain('Show help');
     expect(app.textContent).not.toContain('Use it like a sidecar scorekeeper');
     expect(app.textContent).not.toContain('Guided turn mode');
@@ -86,15 +99,15 @@ describe('strategy app shell', () => {
     expect(document.querySelector('.why-panel')?.hasAttribute('open')).toBe(false);
 
     app = await loadApp();
-    expect(app.textContent).toContain('Board first.');
+    expect(app.textContent).toContain('Tiles still up');
     expect(app.textContent).not.toContain('Use it like a sidecar scorekeeper');
 
-    click('#restore-guidance-btn');
+    click('#help-mode-btn');
     expect(app.textContent).toContain('Guidance restored');
     expect(app.textContent).toContain('Use it like a sidecar scorekeeper');
 
-    click('#help-mode-btn');
-    expect(app.textContent).toContain('Compact mode on');
+    click('[data-help-mode="compact"]');
+    expect(app.textContent).toContain('Game view on');
   });
 
   it('ranks moves after a roll and applies the best move', async () => {
@@ -103,17 +116,16 @@ describe('strategy app shell', () => {
     click('[data-roll="7"]');
 
     expect(app.textContent).toContain('Close 7');
-    expect(app.textContent).toContain('Next step: apply the best move');
     expect(app.textContent).toContain('Why this move?');
     expect(app.textContent).toContain('The next alternative');
-    expect(app.textContent).toContain('Apply best');
+    expect(app.textContent).toContain('Close these tiles');
     expect(document.querySelector('[data-tile="7"]')?.className).toContain('is-optimal');
 
     click('[data-move-mask]');
 
-    expect(app.textContent).toContain('Open tiles: 1, 2, 3, 4, 5, 6, 8, 9');
+    expect(document.querySelector('[data-tile="7"]')?.className).toContain('is-closed');
     expect(app.textContent).toContain('Closed 7. Roll cleared. Next: roll again.');
-    expect(app.textContent).toContain('Choose a dice total');
+    expect(app.textContent).toContain('What did you roll?');
   });
 
   it('supports tile editing, typed dice totals, objective changes, and no-move states', async () => {
@@ -127,6 +139,7 @@ describe('strategy app shell', () => {
     expect(app.textContent).toContain('No legal move');
     expect(app.textContent).toContain('Final score: 39');
 
+    click('#help-mode-btn');
     click('[data-objective="maximize_shutting"]');
     expect(app.textContent).toContain('Shut chance');
     expect(document.querySelector('[data-objective="maximize_shutting"]')?.className).toContain(
@@ -160,21 +173,21 @@ describe('strategy app shell', () => {
     const app = await loadApp();
 
     click('#clear-high-btn');
-    expect(app.textContent).toContain('Closed 7 + 8 + 9. One die is now available.');
-    expect(app.textContent).toContain('Open tiles: 1, 2, 3, 4, 5, 6');
+    expect(app.textContent).toContain('Marked 7 + 8 + 9 down. One die is now available.');
+    expect(document.querySelector('[data-tile="7"]')?.className).toContain('is-closed');
     expect(app.textContent).toContain('One die is available. Auto selected 1d6');
     expect(document.querySelector<HTMLButtonElement>('#undo-btn')?.disabled).toBe(false);
 
     click('#undo-btn');
-    expect(app.textContent).toContain('Open tiles: 1, 2, 3, 4, 5, 6, 7, 8, 9');
+    expect(document.querySelector('[data-tile="7"]')?.className).toContain('is-open');
     expect(document.querySelector<HTMLButtonElement>('#redo-btn')?.disabled).toBe(false);
 
     click('#redo-btn');
-    expect(app.textContent).toContain('Open tiles: 1, 2, 3, 4, 5, 6');
+    expect(document.querySelector('[data-tile="7"]')?.className).toContain('is-closed');
 
     click('#all-open-btn');
-    expect(app.textContent).toContain('All tiles opened');
-    expect(app.textContent).toContain('Open tiles: 1, 2, 3, 4, 5, 6, 7, 8, 9');
+    expect(app.textContent).toContain('All tiles set up');
+    expect(document.querySelector('[data-tile="7"]')?.className).toContain('is-open');
   });
 
   it('loads a practice demo turn', async () => {
@@ -182,7 +195,7 @@ describe('strategy app shell', () => {
 
     click('#demo-turn-btn');
 
-    expect(app.textContent).toContain('Demo turn loaded');
+    expect(app.textContent).toContain('Demo loaded');
     expect(app.textContent).toContain('Close 7');
     expect(document.querySelector<HTMLInputElement>('#dice-input')?.value).toBe('7');
     expect(document.querySelector('[data-tile="7"]')?.className).toContain('is-optimal');
@@ -197,13 +210,13 @@ describe('strategy app shell', () => {
 
     pressKey('Enter');
     expect(app.textContent).toContain('Closed 7. Roll cleared. Next: roll again.');
-    expect(app.textContent).toContain('Open tiles: 1, 2, 3, 4, 5, 6, 8, 9');
+    expect(document.querySelector('[data-tile="7"]')?.className).toContain('is-closed');
 
     pressKey('u');
-    expect(app.textContent).toContain('Open tiles: 1, 2, 3, 4, 5, 6, 7, 8, 9');
+    expect(document.querySelector('[data-tile="7"]')?.className).toContain('is-open');
 
     pressKey('y');
-    expect(app.textContent).toContain('Open tiles: 1, 2, 3, 4, 5, 6, 8, 9');
+    expect(document.querySelector('[data-tile="7"]')?.className).toContain('is-closed');
 
     pressKey('r');
     expect(document.querySelector<HTMLInputElement>('#dice-input')?.value).toBe('6');
@@ -215,7 +228,7 @@ describe('strategy app shell', () => {
     pressKeyOn('#dice-input', '7');
 
     expect(document.querySelector<HTMLInputElement>('#dice-input')?.value).toBe('');
-    expect(app.textContent).toContain('Choose a dice total');
+    expect(app.textContent).toContain('Waiting for roll');
   });
 
   it('persists board, roll, objective, and dice mode locally', async () => {
@@ -225,12 +238,13 @@ describe('strategy app shell', () => {
     click('[data-tile="8"]');
     click('[data-tile="9"]');
     click('[data-dice-mode="one"]');
+    click('#help-mode-btn');
     click('[data-objective="maximize_survival"]');
     click('[data-roll="4"]');
 
     app = await loadApp();
 
-    expect(app.textContent).toContain('Open tiles: 1, 2, 3, 4, 5, 6');
+    expect(document.querySelector('[data-tile="7"]')?.className).toContain('is-closed');
     expect(app.textContent).toContain('Manual: 1 die');
     expect(app.textContent).toContain('Survival');
     expect(document.querySelector<HTMLInputElement>('#dice-input')?.value).toBe('4');
@@ -241,7 +255,7 @@ describe('strategy app shell', () => {
 
     const app = await loadApp();
 
-    expect(app.textContent).toContain('Open tiles: 1, 2, 3, 4, 5, 6, 7, 8, 9');
+    expect(document.querySelector('[data-tile="7"]')?.className).toContain('is-open');
     expect(app.textContent).toContain('Auto: 2 dice');
   });
 
@@ -290,22 +304,29 @@ describe('strategy app shell', () => {
     expect(app.textContent).toContain('Box shut');
     expect(app.textContent).toContain('Final score: 0');
     expect(app.textContent).toContain('Shut');
+
+    click('#help-mode-btn');
+    expect(app.textContent).toContain('Next step: start a new game');
   });
 
   it('resets all mutable play state', async () => {
     const app = await loadApp();
 
     click('[data-tile="9"]');
+    click('#help-mode-btn');
     click('[data-objective="maximize_survival"]');
     click('[data-dice-mode="two"]');
     click('[data-roll="7"]');
     click('#reset-btn');
 
-    expect(app.textContent).toContain('Open tiles: 1, 2, 3, 4, 5, 6, 7, 8, 9');
-    expect(app.textContent).toContain('Lowest score');
+    expect(document.querySelector('[data-tile="9"]')?.className).toContain('is-open');
     expect(app.textContent).toContain('Auto: 2 dice');
     expect(document.querySelector('[data-dice-mode="auto"]')?.className).toContain('is-active');
     expect(document.querySelector<HTMLInputElement>('#dice-input')?.value).toBe('');
+    expect(document.querySelector('.app-layout')?.className).toContain('is-compact');
+
+    click('#help-mode-btn');
+    expect(app.textContent).toContain('Lowest score');
   });
 
   it('routes to the guide page by direct URL and in-app navigation', async () => {
@@ -331,7 +352,7 @@ describe('strategy app shell', () => {
 
     click('[data-page="play"]');
     expect(window.location.pathname).toBe(BASE_PATH + '/');
-    expect(app.textContent).toContain('Use it like a sidecar scorekeeper');
+    expect(app.textContent).toContain('Tiles still up');
 
     window.history.pushState(null, '', BASE_PATH + '/math');
     window.dispatchEvent(new PopStateEvent('popstate'));

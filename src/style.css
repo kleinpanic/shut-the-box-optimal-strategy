@@ -256,10 +256,14 @@
 
 .app-layout {
   display: grid;
-  gap: 14px;
+  gap: 12px;
   width: min(1280px, 100%);
   margin: 0 auto;
   padding: 14px clamp(12px, 2vw, 26px) 24px;
+}
+
+.app-layout.is-compact {
+  width: min(1180px, 100%);
 }
 
 .view-mode-switch {
@@ -447,6 +451,10 @@
   padding: 0;
 }
 
+.app-layout.is-compact .strategy-stage {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.62fr);
+}
+
 .board-stack,
 .action-stack {
   display: flex;
@@ -471,6 +479,14 @@
   border-radius: 8px;
   background: rgba(255, 253, 248, 0.96);
   box-shadow: var(--tight-shadow);
+}
+
+.app-layout.is-compact .board-panel {
+  order: 1;
+}
+
+.app-layout.is-compact .dice-panel {
+  order: 2;
 }
 
 .panel {
@@ -625,6 +641,15 @@
   margin-top: 16px;
 }
 
+.app-layout.is-compact .tile-row {
+  gap: clamp(9px, 1.1vw, 14px);
+}
+
+.app-layout.is-compact .tile-button {
+  aspect-ratio: 0.9;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+}
+
 .board-tools {
   display: flex;
   flex-wrap: wrap;
@@ -719,6 +744,13 @@
 
 .dice-panel {
   background: #fffaf0;
+}
+
+.panel-subtitle {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 850;
 }
 
 .number-field {
@@ -823,9 +855,18 @@ input[type='number'] {
   flex: 1;
 }
 
+.app-layout.is-compact .advisor-panel {
+  position: sticky;
+  top: 86px;
+}
+
 .advisor-panel h2 {
   font-size: clamp(1.55rem, 2.2vw, 2.15rem);
   line-height: 1.05;
+}
+
+.app-layout.is-compact .advisor-panel h2 {
+  font-size: clamp(2rem, 3vw, 3.1rem);
 }
 
 .advisor-panel p {
@@ -1771,8 +1812,13 @@ input[type='number'] {
 
 @media (max-width: 1120px) {
   .strategy-stage,
+  .app-layout.is-compact .strategy-stage,
   .analysis-strip {
     grid-template-columns: 1fr;
+  }
+
+  .app-layout.is-compact .advisor-panel {
+    position: static;
   }
 
   .analysis-strip {
