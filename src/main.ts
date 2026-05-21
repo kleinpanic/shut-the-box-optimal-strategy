@@ -1210,17 +1210,13 @@ function simulatorPage(): string {
   const score = tileValue(simulatorState.gameState);
   return [
     '<main class="simulator-page" aria-label="3D Shut the Box simulator">',
-    '<section class="simulator-hero">',
-    '<div><span class="eyebrow">Animated endpoint</span><h2>3D Shut the Box simulator</h2>',
-    '<p>Roll the dice, watch the legal move close, and keep the live strategy stats pinned over the table.</p></div>',
-    '<div class="simulator-status"><span>' +
-      (oneDie ? '1 die active' : '2 dice active') +
-      '</span><strong>Turn ' +
-      simulatorState.turn +
-      '</strong></div>',
-    '</section>',
     '<section class="simulator-shell">',
     '<div id="sim-canvas" class="sim-canvas" aria-label="3D board and dice"></div>',
+    '<div class="sim-title-card"><span class="eyebrow">Simulator</span><h2>3D Shut the Box</h2><p>' +
+      (oneDie ? 'One die active' : 'Two dice active') +
+      ' · Turn ' +
+      simulatorState.turn +
+      '</p></div>',
     '<aside class="sim-overlay" aria-label="Simulator stats">',
     '<div class="sim-overlay-header"><span class="eyebrow">Live stats</span><strong>' +
       simulatorOutcomeLabel(ranked) +
@@ -1260,6 +1256,7 @@ function simulatorPage(): string {
       '</button>',
     '<button id="sim-reset-btn" class="button button-quiet" type="button">Reset</button>',
     '</div>',
+    '<div class="sim-readout"><span>Rules</span><p>Roll, close the best legal tile set, then repeat until the box shuts or no legal move remains.</p></div>',
     '<ol class="sim-log">' +
       simulatorState.log.map((entry) => '<li>' + entry + '</li>').join('') +
       '</ol>',
@@ -1402,10 +1399,11 @@ function initSimulatorScene(): void {
   }
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x071018);
+  scene.background = new THREE.Color(0x03070b);
+  scene.fog = new THREE.Fog(0x03070b, 10, 24);
   const camera = new THREE.PerspectiveCamera(42, mount.clientWidth / mount.clientHeight, 0.1, 100);
-  camera.position.set(0, 8, 11);
-  camera.lookAt(0, 0, 0);
+  camera.position.set(0, 7.4, 10.4);
+  camera.lookAt(0, 0.08, -0.25);
 
   let renderer: THREE.WebGLRenderer;
   try {
@@ -1419,29 +1417,62 @@ function initSimulatorScene(): void {
   renderer.setSize(mount.clientWidth, mount.clientHeight);
   mount.replaceChildren(renderer.domElement);
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.75));
-  const key = new THREE.DirectionalLight(0xffffff, 1.3);
-  key.position.set(4, 8, 6);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+  const key = new THREE.DirectionalLight(0xffffff, 2.1);
+  key.position.set(4.8, 8.5, 5.5);
   scene.add(key);
+  const rim = new THREE.PointLight(0x6ee7b7, 1.9, 18);
+  rim.position.set(-4.8, 3.2, -3.6);
+  scene.add(rim);
+  const warm = new THREE.PointLight(0xfbbf24, 1.15, 14);
+  warm.position.set(4.5, 2.6, 3.2);
+  scene.add(warm);
 
   const table = new THREE.Mesh(
-    new THREE.BoxGeometry(10.8, 0.35, 5.8),
-    new THREE.MeshStandardMaterial({ color: 0x123044, roughness: 0.85 }),
+    new THREE.BoxGeometry(12.2, 0.34, 7.0),
+    new THREE.MeshStandardMaterial({ color: 0x4a2919, roughness: 0.78 }),
   );
   table.position.y = -0.25;
   scene.add(table);
 
-  const railMaterial = new THREE.MeshStandardMaterial({ color: 0x2a5b73, roughness: 0.7 });
+  const felt = new THREE.Mesh(
+    new THREE.BoxGeometry(11.2, 0.08, 6.0),
+    new THREE.MeshStandardMaterial({
+      color: 0x0f6b52,
+      emissive: 0x03251d,
+      roughness: 0.92,
+      metalness: 0.05,
+    }),
+  );
+  felt.position.y = -0.02;
+  scene.add(felt);
+
+  const railMaterial = new THREE.MeshStandardMaterial({
+    color: 0x704126,
+    roughness: 0.55,
+    metalness: 0.04,
+  });
   [
-    [0, 0.15, -3.05, 11.1, 0.5, 0.24],
-    [0, 0.15, 3.05, 11.1, 0.5, 0.24],
-    [-5.55, 0.15, 0, 0.24, 0.5, 6.1],
-    [5.55, 0.15, 0, 0.24, 0.5, 6.1],
+    [0, 0.22, -3.42, 12.6, 0.72, 0.34],
+    [0, 0.22, 3.42, 12.6, 0.72, 0.34],
+    [-6.18, 0.22, 0, 0.34, 0.72, 7.15],
+    [6.18, 0.22, 0, 0.34, 0.72, 7.15],
   ].forEach(([x, y, z, w, h, d]) => {
     const rail = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), railMaterial);
     rail.position.set(x, y, z);
     scene.add(rail);
   });
+
+  const laneMaterial = new THREE.MeshBasicMaterial({
+    color: 0x8cf7c9,
+    transparent: true,
+    opacity: 0.18,
+  });
+  for (let index = 0; index < 10; index += 1) {
+    const line = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.012, 5.1), laneMaterial);
+    line.position.set(-4.92 + index * 0.84, 0.04, -0.2);
+    scene.add(line);
+  }
 
   for (let tile = 1; tile <= 9; tile += 1) {
     scene.add(createSimTile(tile, (simulatorState.gameState & (1 << (tile - 1))) !== 0));
@@ -1496,7 +1527,7 @@ function createSimTile(tile: number, open: boolean): THREE.Group {
     emissive: open ? 0x3c2700 : 0x000000,
     roughness: 0.6,
   });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.82, 1.45, 0.18), material);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.68, 1.35, 0.18), material);
   body.position.y = open ? 0.62 : 0.02;
   body.rotation.x = open ? -0.2 : -Math.PI / 2;
   group.add(body);
@@ -1507,7 +1538,7 @@ function createSimTile(tile: number, open: boolean): THREE.Group {
   label.scale.set(0.42, 0.42, 1);
   label.position.set(0, open ? 1.05 : 0.15, open ? 0.12 : 0.38);
   group.add(label);
-  group.position.set(-4.2 + (tile - 1) * 1.05, 0, -1.85);
+  group.position.set(-4.55 + (tile - 1) * 0.84, 0, -1.85);
   return group;
 }
 
@@ -1518,20 +1549,89 @@ function createSimDice(): THREE.Group[] {
       if (value === null) return null;
       const group = new THREE.Group();
       const die = new THREE.Mesh(
-        new THREE.BoxGeometry(0.78, 0.78, 0.78),
-        new THREE.MeshStandardMaterial({ color: 0xf4f7fb, roughness: 0.35 }),
+        new THREE.BoxGeometry(0.82, 0.82, 0.82),
+        new THREE.MeshStandardMaterial({ color: 0xf7fafc, roughness: 0.28, metalness: 0.02 }),
       );
       group.add(die);
-      const label = new THREE.Sprite(
-        new THREE.SpriteMaterial({ map: numberTexture(String(value), '#101820') }),
-      );
-      label.position.set(0, 0.47, 0);
-      label.scale.set(0.52, 0.52, 1);
-      group.add(label);
+      addDiePips(group);
       group.position.set(index === 0 ? -0.8 : 0.8, 0.65, 0.05);
       return group;
     })
     .filter((group): group is THREE.Group => group !== null);
+}
+
+function addDiePips(group: THREE.Group): void {
+  addPipFace(group, 1, 'py');
+  addPipFace(group, 6, 'ny');
+  addPipFace(group, 2, 'pz');
+  addPipFace(group, 5, 'nz');
+  addPipFace(group, 3, 'px');
+  addPipFace(group, 4, 'nx');
+}
+
+function addPipFace(
+  group: THREE.Group,
+  value: number,
+  face: 'px' | 'nx' | 'py' | 'ny' | 'pz' | 'nz',
+): void {
+  const pipMap: Record<number, number[][]> = {
+    1: [[0, 0]],
+    2: [
+      [-0.18, -0.18],
+      [0.18, 0.18],
+    ],
+    3: [
+      [-0.18, -0.18],
+      [0, 0],
+      [0.18, 0.18],
+    ],
+    4: [
+      [-0.18, -0.18],
+      [0.18, -0.18],
+      [-0.18, 0.18],
+      [0.18, 0.18],
+    ],
+    5: [
+      [-0.18, -0.18],
+      [0.18, -0.18],
+      [0, 0],
+      [-0.18, 0.18],
+      [0.18, 0.18],
+    ],
+    6: [
+      [-0.18, -0.22],
+      [0.18, -0.22],
+      [-0.18, 0],
+      [0.18, 0],
+      [-0.18, 0.22],
+      [0.18, 0.22],
+    ],
+  };
+  const offsets = pipMap[value] ?? pipMap[1];
+  const material = new THREE.MeshBasicMaterial({ color: 0x0f172a });
+  offsets.forEach(([a, b]) => {
+    const pip = new THREE.Mesh(new THREE.CircleGeometry(0.055, 18), material);
+    const edge = 0.413;
+    if (face === 'py') {
+      pip.position.set(a, edge, b);
+      pip.rotation.x = -Math.PI / 2;
+    } else if (face === 'ny') {
+      pip.position.set(a, -edge, b);
+      pip.rotation.x = Math.PI / 2;
+    } else if (face === 'pz') {
+      pip.position.set(a, b, edge);
+    } else if (face === 'nz') {
+      pip.position.set(a, b, -edge);
+      pip.rotation.y = Math.PI;
+    } else if (face === 'px') {
+      pip.position.set(edge, a, b);
+      pip.rotation.y = Math.PI / 2;
+    } else {
+      pip.position.set(-edge, a, b);
+      pip.rotation.y = -Math.PI / 2;
+    }
+    group.add(pip);
+  });
 }
 
 function numberTexture(value: string, color: string): THREE.CanvasTexture {

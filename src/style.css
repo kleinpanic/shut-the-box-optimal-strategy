@@ -77,8 +77,9 @@
   gap: 12px;
   align-items: center;
   padding: 10px clamp(14px, 2vw, 28px);
-  border-bottom: 1px solid rgba(76, 46, 30, 0.16);
-  background: rgba(255, 253, 248, 0.9);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(5, 10, 16, 0.82);
+  box-shadow: 0 14px 48px rgba(0, 0, 0, 0.28);
   backdrop-filter: blur(18px);
 }
 
@@ -129,13 +130,13 @@
 
 .page-nav {
   display: inline-grid;
-  grid-template-columns: repeat(3, auto);
+  grid-template-columns: repeat(4, auto);
   gap: 4px;
   justify-self: center;
   padding: 4px;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
-  background: rgba(248, 243, 232, 0.82);
+  background: rgba(255, 255, 255, 0.055);
 }
 
 .nav-tab {
@@ -153,9 +154,9 @@
 
 .nav-tab:hover,
 .nav-tab.is-active {
-  background: var(--surface-strong);
+  background: rgba(255, 255, 255, 0.14);
   color: var(--ink);
-  box-shadow: 0 2px 8px rgba(42, 32, 21, 0.08);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.24);
 }
 
 .score-pill,
@@ -171,8 +172,8 @@
 .score-pill {
   gap: 8px;
   padding: 5px 6px 5px 12px;
-  background: #f7f0e2;
-  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 850;
@@ -185,15 +186,15 @@
   height: 28px;
   place-items: center;
   border-radius: 999px;
-  background: var(--surface-strong);
+  background: rgba(255, 255, 255, 0.13);
   color: var(--ink);
   font-size: 1.05rem;
 }
 
 .mode-pill {
   padding: 0 12px;
-  background: #e6f2ea;
-  border: 1px solid #b9d7c5;
+  background: rgba(52, 211, 153, 0.1);
+  border: 1px solid rgba(52, 211, 153, 0.22);
   color: var(--green);
   font-size: 0.78rem;
   font-weight: 850;
@@ -2029,46 +2030,17 @@ input[type='number'] {
 }
 
 .simulator-page {
+  position: relative;
   display: grid;
-  gap: 18px;
-  padding: 18px;
+  min-height: calc(100vh - 68px);
+  padding: clamp(10px, 2vw, 22px);
+  background:
+    radial-gradient(circle at 18% 18%, rgba(20, 184, 166, 0.16), transparent 28rem),
+    radial-gradient(circle at 78% 6%, rgba(245, 158, 11, 0.13), transparent 24rem),
+    linear-gradient(180deg, #05090f 0%, #080d13 100%);
 }
 
-.simulator-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 18px;
-  padding: 20px;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: linear-gradient(135deg, rgba(15, 33, 45, 0.96), rgba(8, 14, 20, 0.95));
-  box-shadow: var(--shadow);
-}
-
-.simulator-hero h2 {
-  margin: 4px 0 8px;
-  font-size: clamp(1.8rem, 3vw, 3.4rem);
-  line-height: 1;
-}
-
-.simulator-hero p {
-  max-width: 760px;
-  margin: 0;
-  color: var(--muted);
-}
-
-.simulator-status {
-  display: grid;
-  gap: 4px;
-  min-width: 150px;
-  padding: 14px;
-  border: 1px solid var(--border-strong);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.simulator-status span,
+.sim-title-card span,
 .sim-overlay span,
 .sim-stat-grid span {
   color: var(--muted);
@@ -2077,23 +2049,21 @@ input[type='number'] {
   letter-spacing: 0.08em;
 }
 
-.simulator-status strong {
-  font-size: 1.35rem;
-}
-
 .simulator-shell {
   position: relative;
-  min-height: 680px;
+  min-height: min(820px, calc(100vh - 100px));
   overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 22px;
-  background: #061019;
-  box-shadow: var(--shadow);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 22%), #03070b;
+  box-shadow:
+    0 30px 100px rgba(0, 0, 0, 0.56),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .sim-canvas {
   width: 100%;
-  height: 680px;
+  height: min(820px, calc(100vh - 100px));
 }
 
 .sim-canvas canvas {
@@ -2109,20 +2079,47 @@ input[type='number'] {
   color: var(--muted);
 }
 
+.sim-title-card {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  display: grid;
+  gap: 4px;
+  max-width: min(440px, calc(100% - 36px));
+  padding: 16px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  background: rgba(3, 8, 13, 0.58);
+  box-shadow: 0 18px 70px rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(18px);
+}
+
+.sim-title-card h2 {
+  margin: 0;
+  font-size: clamp(1.4rem, 2.4vw, 2.5rem);
+  line-height: 0.96;
+}
+
+.sim-title-card p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 800;
+}
+
 .sim-overlay {
   position: absolute;
   inset: 18px 18px auto auto;
   display: grid;
-  gap: 12px;
-  width: min(390px, calc(100% - 36px));
+  gap: 14px;
+  width: min(410px, calc(100% - 36px));
   max-height: calc(100% - 36px);
   overflow: auto;
-  padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 18px;
-  background: rgba(5, 12, 18, 0.78);
-  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(18px);
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 20px;
+  background: rgba(3, 8, 13, 0.66);
+  box-shadow: 0 24px 86px rgba(0, 0, 0, 0.44);
+  backdrop-filter: blur(22px) saturate(1.15);
 }
 
 .sim-overlay-header {
@@ -2133,6 +2130,7 @@ input[type='number'] {
 
 .sim-overlay-header strong {
   text-align: right;
+  color: #ecfeff;
 }
 
 .sim-stat-grid {
@@ -2145,21 +2143,24 @@ input[type='number'] {
   display: grid;
   gap: 4px;
   min-height: 74px;
-  padding: 10px;
+  padding: 12px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.035)),
+    rgba(255, 255, 255, 0.04);
 }
 
 .sim-stat-grid strong {
-  font-size: 1.18rem;
+  color: #f8fafc;
+  font-size: 1.24rem;
 }
 
 .sim-best {
   padding: 12px;
-  border: 1px solid rgba(125, 211, 252, 0.28);
+  border: 1px solid rgba(45, 212, 191, 0.28);
   border-radius: 14px;
-  background: rgba(14, 116, 144, 0.14);
+  background: rgba(20, 184, 166, 0.12);
 }
 
 .sim-best p {
@@ -2173,6 +2174,22 @@ input[type='number'] {
   gap: 8px;
 }
 
+.sim-controls .button {
+  min-height: 44px;
+}
+
+.sim-readout {
+  padding: 11px 12px;
+  border: 1px solid rgba(250, 204, 21, 0.22);
+  border-radius: 14px;
+  background: rgba(161, 98, 7, 0.13);
+}
+
+.sim-readout p {
+  margin: 5px 0 0;
+  color: var(--ink);
+}
+
 .sim-log {
   display: grid;
   gap: 7px;
@@ -2183,18 +2200,15 @@ input[type='number'] {
 }
 
 @media (max-width: 920px) {
-  .simulator-hero {
-    grid-template-columns: 1fr;
-  }
-
   .simulator-shell {
     min-height: 760px;
   }
 
   .sim-canvas {
-    height: 440px;
+    height: 430px;
   }
 
+  .sim-title-card,
   .sim-overlay {
     position: relative;
     inset: auto;
@@ -2207,10 +2221,6 @@ input[type='number'] {
 @media (max-width: 520px) {
   .simulator-page {
     padding: 10px;
-  }
-
-  .simulator-hero {
-    padding: 14px;
   }
 
   .sim-stat-grid,

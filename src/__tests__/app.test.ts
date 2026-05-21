@@ -366,7 +366,7 @@ describe('strategy app shell', () => {
   it('renders the simulator route and navigates to it', async () => {
     let app = await loadApp('/simulator');
 
-    expect(app.textContent).toContain('3D Shut the Box simulator');
+    expect(app.textContent).toContain('3D Shut the Box');
     expect(app.textContent).toContain('Live stats');
     expect(app.textContent).toContain('Roll turn');
     expect(app.textContent).toContain('Ready: roll the dice');
@@ -379,7 +379,7 @@ describe('strategy app shell', () => {
     click('[data-page="simulator"]');
     app = document.getElementById('app')!;
 
-    expect(app.textContent).toContain('3D Shut the Box simulator');
+    expect(app.textContent).toContain('3D Shut the Box');
     expect(window.location.pathname).toBe(BASE_PATH + '/simulator');
   });
 
@@ -422,7 +422,7 @@ describe('strategy app shell', () => {
     vi.advanceTimersByTime(1000);
 
     expect(app.textContent).toContain('Tiles 7-9 are down; one die is now active.');
-    expect(app.textContent).toContain('1 die active');
+    expect(app.textContent).toContain('One die active');
     expect(app.textContent).toContain('Dice1d6');
   });
 
