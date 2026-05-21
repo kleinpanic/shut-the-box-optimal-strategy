@@ -1,4 +1,5 @@
 import './style.css';
+import * as THREE from 'three';
 import { getRankedMoves, tileValue, diceDistribution } from './engine/index.js';
 import { TWO_DICE_DP, ONE_DICE_DP } from './engine/dp.js';
 import type { DPTables, Objective, RankedMove } from './engine/types.js';
@@ -13,17 +14,39 @@ interface AppState {
 }
 
 type Snapshot = Pick<AppState, 'gameState' | 'roll' | 'objective' | 'diceMode' | 'helpMode'>;
+interface SimulatorState {
+  gameState: number;
+  roll: number | null;
+  diceMode: DiceMode;
+  objective: Objective;
+  turn: number;
+  dieValues: [number, number | null];
+  lastMove: RankedMove | null;
+  log: string[];
+  isRolling: boolean;
+  autoplay: boolean;
+}
+
+interface SimulatorRuntime {
+  renderer: THREE.WebGLRenderer;
+  scene: THREE.Scene;
+  frame: number;
+  startedAt: number;
+  dice: THREE.Group[];
+  dispose: () => void;
+}
 
 const FULL_STATE = 0x1ff;
 const HIGH_TILES_MASK = 0x1c0;
 const STORAGE_KEY = 'shut-the-box-optimal-strategy:state:v1';
-type AppPage = 'play' | 'guide' | 'math';
+type AppPage = 'play' | 'guide' | 'math' | 'simulator';
 type DiceMode = 'auto' | 'two' | 'one';
 type HelpMode = 'guided' | 'compact';
 const PAGE_PATHS: Record<AppPage, string> = {
   play: '/',
   guide: '/how-to-use',
   math: '/math',
+  simulator: '/simulator',
 };
 const BASE_PATH = import.meta.env.BASE_URL.replace(/\/$/, '');
 const DEPLOYED_BASE_PATH = '/shut-the-box-optimal-strategy';
@@ -41,6 +64,22 @@ const state: AppState = {
 let undoStack: Snapshot[] = [];
 let redoStack: Snapshot[] = [];
 let lastNotice: string | null = null;
+let rollDraft = state.roll === null ? '' : String(state.roll);
+let simulatorRuntime: SimulatorRuntime | null = null;
+let simulatorTimer: number | null = null;
+
+const simulatorState: SimulatorState = {
+  gameState: FULL_STATE,
+  roll: null,
+  diceMode: 'auto',
+  objective: 'minimize_score',
+  turn: 0,
+  dieValues: [1, 1],
+  lastMove: null,
+  log: ['Ready: roll the dice to watch the advisor choose a legal move.'],
+  isRolling: false,
+  autoplay: false,
+};
 
 const objectiveMeta: Record<Objective, { label: string; shortLabel: string; description: string }> =
   {
@@ -70,6 +109,11 @@ function activeOneDie(): boolean {
   return canUseOneDie(state.gameState);
 }
 
+function simulatorOneDie(): boolean {
+  if (simulatorState.diceMode === 'two') return false;
+  return canUseOneDie(simulatorState.gameState);
+}
+
 function activeDp(): DPTables {
   return state.diceMode === 'two' ? TWO_DICE_DP : ONE_DICE_DP;
 }
@@ -91,7 +135,15 @@ function diceRange(): { min: number; max: number; values: number[] } {
 function normalizeRoll(): void {
   if (state.roll === null) return;
   const range = diceRange();
-  if (state.roll < range.min || state.roll > range.max) state.roll = null;
+  if (state.roll < range.min || state.roll > range.max) {
+    state.roll = null;
+    rollDraft = '';
+  }
+}
+
+function setRoll(value: number | null): void {
+  state.roll = value;
+  rollDraft = value === null ? '' : String(value);
 }
 
 function openTiles(gameState = state.gameState): number[] {
@@ -125,6 +177,11 @@ function randomRoll(): number {
   return Math.ceil(Math.random() * 6) + Math.ceil(Math.random() * 6);
 }
 
+function randomDiceValues(oneDie: boolean): [number, number | null] {
+  const first = Math.ceil(Math.random() * 6);
+  return oneDie ? [first, null] : [first, Math.ceil(Math.random() * 6)];
+}
+
 function snapshotState(): Snapshot {
   return {
     gameState: state.gameState,
@@ -141,6 +198,7 @@ function restoreSnapshot(snapshot: Snapshot): void {
   state.objective = snapshot.objective;
   state.diceMode = snapshot.diceMode;
   state.helpMode = snapshot.helpMode;
+  rollDraft = snapshot.roll === null ? '' : String(snapshot.roll);
 }
 
 function isValidSnapshot(value: unknown): value is Snapshot {
@@ -223,6 +281,7 @@ function currentPage(): AppPage {
   const normalized = route.replace(/\/$/, '') || '/';
   if (normalized === PAGE_PATHS.math) return 'math';
   if (normalized === PAGE_PATHS.guide) return 'guide';
+  if (normalized === PAGE_PATHS.simulator) return 'simulator';
   return 'play';
 }
 
@@ -241,9 +300,11 @@ function setPage(page: AppPage, push = true): void {
 }
 
 function render(): void {
+  disposeSimulatorScene();
   normalizeRoll();
   document.getElementById('app')!.innerHTML = buildApp();
   attach();
+  if (state.page === 'simulator') initSimulatorScene();
 }
 
 function buildApp(): string {
@@ -254,6 +315,7 @@ function buildApp(): string {
 function pageBody(ranked: RankedMove[]): string {
   if (state.page === 'guide') return guidePage();
   if (state.page === 'math') return mathPage();
+  if (state.page === 'simulator') return simulatorPage();
   return playPage(ranked);
 }
 
@@ -355,6 +417,7 @@ function diceModeStatus(): string {
 function pageNav(): string {
   const pages: Array<[AppPage, string]> = [
     ['play', 'Play'],
+    ['simulator', 'Simulator'],
     ['guide', 'How to use'],
     ['math', 'Math'],
   ];
@@ -654,7 +717,7 @@ function dicePanel(): string {
       '" max="' +
       range.max +
       '" inputmode="numeric" value="' +
-      (state.roll ?? '') +
+      rollDraft +
       '" placeholder="' +
       range.min +
       '-' +
@@ -1140,6 +1203,354 @@ function equationCard(title: string, base: string, recurrence: string, note: str
   );
 }
 
+function simulatorPage(): string {
+  const oneDie = simulatorOneDie();
+  const ranked = simulatorRankedMoves();
+  const best = ranked[0] ?? simulatorState.lastMove;
+  const score = tileValue(simulatorState.gameState);
+  return [
+    '<main class="simulator-page" aria-label="3D Shut the Box simulator">',
+    '<section class="simulator-hero">',
+    '<div><span class="eyebrow">Animated endpoint</span><h2>3D Shut the Box simulator</h2>',
+    '<p>Roll the dice, watch the legal move close, and keep the live strategy stats pinned over the table.</p></div>',
+    '<div class="simulator-status"><span>' +
+      (oneDie ? '1 die active' : '2 dice active') +
+      '</span><strong>Turn ' +
+      simulatorState.turn +
+      '</strong></div>',
+    '</section>',
+    '<section class="simulator-shell">',
+    '<div id="sim-canvas" class="sim-canvas" aria-label="3D board and dice"></div>',
+    '<aside class="sim-overlay" aria-label="Simulator stats">',
+    '<div class="sim-overlay-header"><span class="eyebrow">Live stats</span><strong>' +
+      simulatorOutcomeLabel(ranked) +
+      '</strong></div>',
+    '<div class="sim-stat-grid">',
+    simStat('Score up', String(score)),
+    simStat('Roll', simulatorState.roll === null ? '-' : String(simulatorState.roll)),
+    simStat('Dice', oneDie ? '1d6' : '2d6'),
+    simStat('Best move', best ? moveLabel(best) : '-'),
+    simStat('EV', activeSimulatorDp().expectedScore[simulatorState.gameState].toFixed(2)),
+    simStat(
+      'Shut chance',
+      formatPercent(activeSimulatorDp().shutProbability[simulatorState.gameState]),
+    ),
+    '</div>',
+    best
+      ? '<div class="sim-best"><span>Strategy correlation</span><p>Close ' +
+        moveLabel(best) +
+        ' leaves EV ' +
+        activeSimulatorDp().expectedScore[simulatorState.gameState & ~best.move.mask].toFixed(2) +
+        ', shut ' +
+        formatPercent(
+          activeSimulatorDp().shutProbability[simulatorState.gameState & ~best.move.mask],
+        ) +
+        ', survive ' +
+        formatPercent(
+          activeSimulatorDp().survivalProbability[simulatorState.gameState & ~best.move.mask],
+        ) +
+        '.</p></div>'
+      : '<div class="sim-best"><span>Strategy correlation</span><p>Roll to generate the next legal strategy step.</p></div>',
+    '<div class="sim-controls" aria-label="Simulator controls">',
+    '<button id="sim-roll-btn" class="button button-primary" type="button">' +
+      (simulatorState.isRolling ? 'Rolling...' : 'Roll turn') +
+      '</button>',
+    '<button id="sim-auto-btn" class="button button-quiet" type="button">' +
+      (simulatorState.autoplay ? 'Pause auto' : 'Auto-play') +
+      '</button>',
+    '<button id="sim-reset-btn" class="button button-quiet" type="button">Reset</button>',
+    '</div>',
+    '<ol class="sim-log">' +
+      simulatorState.log.map((entry) => '<li>' + entry + '</li>').join('') +
+      '</ol>',
+    '</aside>',
+    '</section>',
+    '</main>',
+  ].join('');
+}
+
+function simStat(label: string, value: string): string {
+  return '<div><span>' + label + '</span><strong>' + value + '</strong></div>';
+}
+
+function simulatorOutcomeLabel(ranked: RankedMove[]): string {
+  if (simulatorState.gameState === 0) return 'Box shut';
+  if (simulatorState.isRolling) return 'Dice in motion';
+  if (simulatorState.roll === null) return 'Ready to roll';
+  if (ranked[0]) return 'Close ' + moveLabel(ranked[0]);
+  return 'No legal move';
+}
+
+function activeSimulatorDp(): DPTables {
+  return simulatorState.diceMode === 'two' || !canUseOneDie(simulatorState.gameState)
+    ? TWO_DICE_DP
+    : ONE_DICE_DP;
+}
+
+function simulatorRankedMoves(): RankedMove[] {
+  if (simulatorState.roll === null || simulatorState.gameState === 0) return [];
+  return getRankedMoves(
+    simulatorState.gameState,
+    simulatorState.roll,
+    simulatorState.objective,
+    simulatorState.diceMode !== 'two',
+  );
+}
+
+function resetSimulator(): void {
+  simulatorState.gameState = FULL_STATE;
+  simulatorState.roll = null;
+  simulatorState.diceMode = 'auto';
+  simulatorState.objective = 'minimize_score';
+  simulatorState.turn = 0;
+  simulatorState.dieValues = [1, 1];
+  simulatorState.lastMove = null;
+  simulatorState.isRolling = false;
+  simulatorState.autoplay = false;
+  simulatorState.log = ['Reset: all tiles are standing.'];
+  stopSimulatorTimer();
+  render();
+}
+
+function simulatorRollTurn(): void {
+  if (simulatorState.isRolling || simulatorState.gameState === 0) return;
+  const oneDie = simulatorOneDie();
+  const dice = randomDiceValues(oneDie);
+  const roll = dice[0] + (dice[1] ?? 0);
+  simulatorState.isRolling = true;
+  simulatorState.roll = roll;
+  simulatorState.dieValues = dice;
+  simulatorState.turn += 1;
+  simulatorState.lastMove = null;
+  simulatorState.log = [
+    'Turn ' +
+      simulatorState.turn +
+      ': rolled ' +
+      roll +
+      ' with ' +
+      (oneDie ? 'one die.' : 'two dice.'),
+    ...simulatorState.log,
+  ].slice(0, 7);
+  render();
+  window.setTimeout(() => finishSimulatorRoll(), 950);
+}
+
+function finishSimulatorRoll(): void {
+  const ranked = simulatorRankedMoves();
+  simulatorState.isRolling = false;
+  if (ranked[0]) {
+    simulatorState.lastMove = ranked[0];
+    simulatorState.gameState &= ~ranked[0].move.mask;
+    simulatorState.log = [
+      'Closed ' +
+        moveLabel(ranked[0]) +
+        '; score up is now ' +
+        tileValue(simulatorState.gameState) +
+        '.',
+      ...simulatorState.log,
+    ].slice(0, 7);
+    simulatorState.roll = null;
+    if (canUseOneDie(simulatorState.gameState) && simulatorState.diceMode === 'auto') {
+      simulatorState.dieValues = [simulatorState.dieValues[0], null];
+      simulatorState.log = [
+        'Tiles 7-9 are down; one die is now active.',
+        ...simulatorState.log,
+      ].slice(0, 7);
+    }
+  } else {
+    simulatorState.log = [
+      'No legal move for ' +
+        simulatorState.roll +
+        '; final score is ' +
+        tileValue(simulatorState.gameState) +
+        '.',
+      ...simulatorState.log,
+    ].slice(0, 7);
+    simulatorState.autoplay = false;
+  }
+  if (simulatorState.gameState === 0) {
+    simulatorState.log = ['Box shut in 3D. Final score 0.', ...simulatorState.log].slice(0, 7);
+    simulatorState.autoplay = false;
+  }
+  render();
+  if (simulatorState.autoplay && simulatorState.gameState !== 0) {
+    simulatorTimer = window.setTimeout(() => simulatorRollTurn(), 650);
+  }
+}
+
+function stopSimulatorTimer(): void {
+  if (simulatorTimer !== null) {
+    window.clearTimeout(simulatorTimer);
+    simulatorTimer = null;
+  }
+}
+
+/* v8 ignore start -- WebGL drawing is validated with real browser canvas checks. */
+function disposeSimulatorScene(): void {
+  if (!simulatorRuntime) return;
+  window.cancelAnimationFrame(simulatorRuntime.frame);
+  simulatorRuntime.dispose();
+  simulatorRuntime = null;
+}
+
+function initSimulatorScene(): void {
+  const mount = document.getElementById('sim-canvas');
+  if (!mount) return;
+  if (typeof WebGLRenderingContext === 'undefined') {
+    mount.innerHTML = '<div class="sim-fallback">3D table renders in a browser with WebGL.</div>';
+    return;
+  }
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x071018);
+  const camera = new THREE.PerspectiveCamera(42, mount.clientWidth / mount.clientHeight, 0.1, 100);
+  camera.position.set(0, 8, 11);
+  camera.lookAt(0, 0, 0);
+
+  let renderer: THREE.WebGLRenderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  } catch {
+    mount.innerHTML =
+      '<div class="sim-fallback">3D rendering is unavailable here, but the simulator controls and stats still work.</div>';
+    return;
+  }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(mount.clientWidth, mount.clientHeight);
+  mount.replaceChildren(renderer.domElement);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+  const key = new THREE.DirectionalLight(0xffffff, 1.3);
+  key.position.set(4, 8, 6);
+  scene.add(key);
+
+  const table = new THREE.Mesh(
+    new THREE.BoxGeometry(10.8, 0.35, 5.8),
+    new THREE.MeshStandardMaterial({ color: 0x123044, roughness: 0.85 }),
+  );
+  table.position.y = -0.25;
+  scene.add(table);
+
+  const railMaterial = new THREE.MeshStandardMaterial({ color: 0x2a5b73, roughness: 0.7 });
+  [
+    [0, 0.15, -3.05, 11.1, 0.5, 0.24],
+    [0, 0.15, 3.05, 11.1, 0.5, 0.24],
+    [-5.55, 0.15, 0, 0.24, 0.5, 6.1],
+    [5.55, 0.15, 0, 0.24, 0.5, 6.1],
+  ].forEach(([x, y, z, w, h, d]) => {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), railMaterial);
+    rail.position.set(x, y, z);
+    scene.add(rail);
+  });
+
+  for (let tile = 1; tile <= 9; tile += 1) {
+    scene.add(createSimTile(tile, (simulatorState.gameState & (1 << (tile - 1))) !== 0));
+  }
+
+  const dice = createSimDice();
+  dice.forEach((die) => scene.add(die));
+
+  const startedAt = performance.now();
+  const runtime: SimulatorRuntime = {
+    renderer,
+    scene,
+    frame: 0,
+    startedAt,
+    dice,
+    dispose: () => {
+      scene.traverse((object) => {
+        const mesh = object as THREE.Mesh;
+        mesh.geometry?.dispose();
+        const material = mesh.material;
+        if (Array.isArray(material)) material.forEach((item) => item.dispose());
+        else material?.dispose();
+      });
+      renderer.dispose();
+    },
+  };
+  simulatorRuntime = runtime;
+
+  const animate = () => {
+    const elapsed = (performance.now() - runtime.startedAt) / 1000;
+    runtime.dice.forEach((die, index) => {
+      if (simulatorState.isRolling) {
+        die.rotation.x = elapsed * (5.5 + index);
+        die.rotation.y = elapsed * (6.5 + index * 0.7);
+        die.position.x = (index === 0 ? -0.8 : 0.8) + Math.sin(elapsed * 8 + index) * 0.55;
+        die.position.z = -0.1 + Math.cos(elapsed * 7 + index) * 0.45;
+      } else {
+        die.rotation.x = index === 0 ? 0.18 : -0.22;
+        die.rotation.y = index === 0 ? 0.45 : -0.5;
+      }
+    });
+    renderer.render(scene, camera);
+    runtime.frame = window.requestAnimationFrame(animate);
+  };
+  animate();
+}
+
+function createSimTile(tile: number, open: boolean): THREE.Group {
+  const group = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial({
+    color: open ? 0xf8d77a : 0x244252,
+    emissive: open ? 0x3c2700 : 0x000000,
+    roughness: 0.6,
+  });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.82, 1.45, 0.18), material);
+  body.position.y = open ? 0.62 : 0.02;
+  body.rotation.x = open ? -0.2 : -Math.PI / 2;
+  group.add(body);
+
+  const label = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: numberTexture(String(tile), open ? '#101820' : '#dce8ef') }),
+  );
+  label.scale.set(0.42, 0.42, 1);
+  label.position.set(0, open ? 1.05 : 0.15, open ? 0.12 : 0.38);
+  group.add(label);
+  group.position.set(-4.2 + (tile - 1) * 1.05, 0, -1.85);
+  return group;
+}
+
+function createSimDice(): THREE.Group[] {
+  const values = simulatorState.dieValues;
+  return values
+    .map((value, index) => {
+      if (value === null) return null;
+      const group = new THREE.Group();
+      const die = new THREE.Mesh(
+        new THREE.BoxGeometry(0.78, 0.78, 0.78),
+        new THREE.MeshStandardMaterial({ color: 0xf4f7fb, roughness: 0.35 }),
+      );
+      group.add(die);
+      const label = new THREE.Sprite(
+        new THREE.SpriteMaterial({ map: numberTexture(String(value), '#101820') }),
+      );
+      label.position.set(0, 0.47, 0);
+      label.scale.set(0.52, 0.52, 1);
+      group.add(label);
+      group.position.set(index === 0 ? -0.8 : 0.8, 0.65, 0.05);
+      return group;
+    })
+    .filter((group): group is THREE.Group => group !== null);
+}
+
+function numberTexture(value: string, color: string): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const context = canvas.getContext('2d')!;
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = color;
+  context.font = '700 72px Arial, sans-serif';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(value, 64, 66);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
+}
+/* v8 ignore stop */
+
 function attach(): void {
   document.querySelectorAll<HTMLAnchorElement>('[data-page]').forEach((link) => {
     link.addEventListener('click', (event) => {
@@ -1150,7 +1561,7 @@ function attach(): void {
 
   document.getElementById('reset-btn')?.addEventListener('click', () => {
     state.gameState = FULL_STATE;
-    state.roll = null;
+    setRoll(null);
     state.objective = 'minimize_score';
     state.diceMode = 'auto';
     state.helpMode = 'compact';
@@ -1189,7 +1600,7 @@ function attach(): void {
   document.querySelectorAll<HTMLButtonElement>('[data-roll]').forEach((button) => {
     button.addEventListener('click', () => {
       commitAction('Roll set to ' + button.dataset.roll + '. Read the top move.', () => {
-        state.roll = Number(button.dataset.roll);
+        setRoll(Number(button.dataset.roll));
       });
     });
   });
@@ -1197,21 +1608,36 @@ function attach(): void {
   document.getElementById('random-roll-btn')?.addEventListener('click', () => {
     const roll = randomRoll();
     commitAction('Rolled ' + roll + '. Read the top move.', () => {
-      state.roll = roll;
+      setRoll(roll);
     });
   });
 
   document.getElementById('clear-roll-btn')?.addEventListener('click', () => {
     commitAction('Roll cleared. Enter the next dice total.', () => {
-      state.roll = null;
+      setRoll(null);
     });
   });
 
   document.getElementById('dice-input')?.addEventListener('input', (event) => {
-    const value = (event.currentTarget as HTMLInputElement).value;
-    commitAction(value === '' ? 'Roll cleared.' : 'Roll set to ' + value + '.', () => {
-      state.roll = value === '' ? null : Number(value);
-    });
+    const input = event.currentTarget as HTMLInputElement;
+    const value = input.value.trim();
+    rollDraft = value;
+    if (value === '') {
+      commitAction('Roll cleared.', () => {
+        setRoll(null);
+      });
+      return;
+    }
+    const roll = Number(value);
+    const { min, max } = diceRange();
+    if (Number.isInteger(roll) && roll >= min && roll <= max) {
+      commitAction('Roll set to ' + roll + '.', () => {
+        setRoll(roll);
+      });
+      return;
+    }
+    state.roll = null;
+    input.setAttribute('aria-invalid', 'true');
   });
 
   document.querySelectorAll<HTMLButtonElement>('[data-tile]').forEach((button) => {
@@ -1220,7 +1646,7 @@ function attach(): void {
       const isOpen = (state.gameState & (1 << (tile - 1))) !== 0;
       commitAction('Tile ' + tile + (isOpen ? ' closed' : ' opened') + '. Roll cleared.', () => {
         state.gameState ^= 1 << (tile - 1);
-        state.roll = null;
+        setRoll(null);
       });
     });
   });
@@ -1230,7 +1656,7 @@ function attach(): void {
       const mask = Number(button.dataset.moveMask);
       commitAction('Closed ' + moveMaskLabel(mask) + '. Roll cleared. Next: roll again.', () => {
         state.gameState &= ~mask;
-        state.roll = null;
+        setRoll(null);
       });
     });
   });
@@ -1238,21 +1664,21 @@ function attach(): void {
   document.getElementById('all-open-btn')?.addEventListener('click', () => {
     commitAction('All tiles set up. Enter your roll when the box matches.', () => {
       state.gameState = FULL_STATE;
-      state.roll = null;
+      setRoll(null);
     });
   });
 
   document.getElementById('clear-high-btn')?.addEventListener('click', () => {
     commitAction('Marked 7 + 8 + 9 down. One die is now available.', () => {
       state.gameState &= ~HIGH_TILES_MASK;
-      state.roll = null;
+      setRoll(null);
     });
   });
 
   document.getElementById('demo-turn-btn')?.addEventListener('click', () => {
     commitAction('Demo loaded: roll 7, then close the highlighted tiles.', () => {
       state.gameState = FULL_STATE;
-      state.roll = 7;
+      setRoll(7);
       state.objective = 'minimize_score';
       state.diceMode = 'auto';
     });
@@ -1260,6 +1686,14 @@ function attach(): void {
 
   document.getElementById('undo-btn')?.addEventListener('click', undo);
   document.getElementById('redo-btn')?.addEventListener('click', redo);
+  document.getElementById('sim-roll-btn')?.addEventListener('click', simulatorRollTurn);
+  document.getElementById('sim-reset-btn')?.addEventListener('click', resetSimulator);
+  document.getElementById('sim-auto-btn')?.addEventListener('click', () => {
+    simulatorState.autoplay = !simulatorState.autoplay;
+    if (simulatorState.autoplay) simulatorRollTurn();
+    else stopSimulatorTimer();
+    render();
+  });
 
   document.onkeydown = handleShortcut;
 }
@@ -1296,7 +1730,7 @@ function handleShortcut(event: KeyboardEvent): void {
     if (roll >= min && roll <= max) {
       event.preventDefault();
       commitAction('Roll set to ' + roll + '. Read the top move.', () => {
-        state.roll = roll;
+        setRoll(roll);
       });
     }
     return;
@@ -1310,7 +1744,7 @@ function handleShortcut(event: KeyboardEvent): void {
         'Closed ' + moveMaskLabel(best.move.mask) + '. Roll cleared. Next: roll again.',
         () => {
           state.gameState &= ~best.move.mask;
-          state.roll = null;
+          setRoll(null);
         },
       );
     }
@@ -1321,7 +1755,7 @@ function handleShortcut(event: KeyboardEvent): void {
     const roll = randomRoll();
     event.preventDefault();
     commitAction('Rolled ' + roll + '. Read the top move.', () => {
-      state.roll = roll;
+      setRoll(roll);
     });
     return;
   }

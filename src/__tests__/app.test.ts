@@ -41,6 +41,7 @@ describe('strategy app shell', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
     document.body.innerHTML = '';
   });
@@ -145,6 +146,25 @@ describe('strategy app shell', () => {
     expect(document.querySelector('[data-objective="maximize_shutting"]')?.className).toContain(
       'is-active',
     );
+  });
+
+  it('lets two-digit dice totals be typed without clearing the first digit', async () => {
+    const app = await loadApp();
+
+    inputValue('#dice-input', '1');
+
+    expect(document.querySelector<HTMLInputElement>('#dice-input')?.value).toBe('1');
+    expect(app.textContent).toContain('Waiting for roll');
+
+    inputValue('#dice-input', '10');
+
+    expect(document.querySelector<HTMLInputElement>('#dice-input')?.value).toBe('10');
+    expect(app.textContent).toContain('Close 1 + 9');
+
+    inputValue('#dice-input', '');
+
+    expect(document.querySelector<HTMLInputElement>('#dice-input')?.value).toBe('');
+    expect(app.textContent).toContain('Roll cleared.');
   });
 
   it('auto-suggests one die when eligible and keeps random roll controls in range', async () => {
@@ -341,6 +361,84 @@ describe('strategy app shell', () => {
 
     expect(window.location.pathname).toBe(BASE_PATH + '/math');
     expect(app.textContent).toContain('Optimal Shut the Box as dynamic programming');
+  });
+
+  it('renders the simulator route and navigates to it', async () => {
+    let app = await loadApp('/simulator');
+
+    expect(app.textContent).toContain('3D Shut the Box simulator');
+    expect(app.textContent).toContain('Live stats');
+    expect(app.textContent).toContain('Roll turn');
+    expect(app.textContent).toContain('Ready: roll the dice');
+    expect(document.querySelector('#sim-canvas')).not.toBeNull();
+    expect(window.location.pathname).toBe(BASE_PATH + '/simulator');
+
+    click('[data-page="play"]');
+    expect(window.location.pathname).toBe(BASE_PATH + '/');
+
+    click('[data-page="simulator"]');
+    app = document.getElementById('app')!;
+
+    expect(app.textContent).toContain('3D Shut the Box simulator');
+    expect(window.location.pathname).toBe(BASE_PATH + '/simulator');
+  });
+
+  it('runs a simulator turn, applies the engine move, and resets', async () => {
+    vi.useFakeTimers();
+    const app = await loadApp('/simulator');
+
+    click('#sim-roll-btn');
+
+    expect(app.textContent).toContain('Dice in motion');
+    expect(app.textContent).toContain('Turn 1: rolled 6 with two dice.');
+
+    vi.advanceTimersByTime(1000);
+
+    expect(app.textContent).toContain('Closed 6; score up is now 39.');
+    expect(app.textContent).toContain('Score up39');
+
+    click('#sim-reset-btn');
+
+    expect(app.textContent).toContain('Reset: all tiles are standing.');
+    expect(app.textContent).toContain('Score up45');
+  });
+
+  it('removes the second simulator die after tiles 7-9 close', async () => {
+    vi.useFakeTimers();
+    vi.mocked(Math.random)
+      .mockReturnValueOnce(0.5)
+      .mockReturnValueOnce(0.99)
+      .mockReturnValueOnce(0.34)
+      .mockReturnValueOnce(0.84)
+      .mockReturnValueOnce(0.01)
+      .mockReturnValueOnce(0.99);
+    const app = await loadApp('/simulator');
+
+    click('#sim-roll-btn');
+    vi.advanceTimersByTime(1000);
+    click('#sim-roll-btn');
+    vi.advanceTimersByTime(1000);
+    click('#sim-roll-btn');
+    vi.advanceTimersByTime(1000);
+
+    expect(app.textContent).toContain('Tiles 7-9 are down; one die is now active.');
+    expect(app.textContent).toContain('1 die active');
+    expect(app.textContent).toContain('Dice1d6');
+  });
+
+  it('starts and pauses simulator auto-play', async () => {
+    vi.useFakeTimers();
+    const app = await loadApp('/simulator');
+
+    click('#sim-auto-btn');
+    expect(app.textContent).toContain('Pause auto');
+    expect(app.textContent).toContain('Dice in motion');
+
+    vi.advanceTimersByTime(1000);
+    expect(app.textContent).toContain('Closed 6; score up is now 39.');
+
+    click('#sim-auto-btn');
+    expect(app.textContent).toContain('Auto-play');
   });
 
   it('supports direct math URLs and browser back navigation', async () => {
