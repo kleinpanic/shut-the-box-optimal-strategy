@@ -443,6 +443,48 @@ describe('strategy app shell', () => {
     expect(app.textContent).toContain('Dice1d6');
   });
 
+  it('clearly ends the simulator when no legal move remains', async () => {
+    vi.useFakeTimers();
+    vi.mocked(Math.random)
+      .mockReturnValueOnce(0.5)
+      .mockReturnValueOnce(0.99)
+      .mockReturnValueOnce(0.34)
+      .mockReturnValueOnce(0.84)
+      .mockReturnValueOnce(0.01)
+      .mockReturnValueOnce(0.99)
+      .mockReturnValueOnce(0.99)
+      .mockReturnValueOnce(0.99)
+      .mockReturnValueOnce(0.99)
+      .mockReturnValueOnce(0.99);
+    const app = await loadApp('/simulator');
+
+    click('#sim-roll-btn');
+    vi.advanceTimersByTime(1000);
+    click('#sim-roll-btn');
+    vi.advanceTimersByTime(1000);
+    click('#sim-roll-btn');
+    vi.advanceTimersByTime(1000);
+    click('#sim-roll-btn');
+    vi.advanceTimersByTime(1000);
+    click('#sim-roll-btn');
+    vi.advanceTimersByTime(1000);
+    click('#sim-roll-btn');
+    vi.advanceTimersByTime(1000);
+    click('#sim-roll-btn');
+    vi.advanceTimersByTime(1000);
+
+    expect(app.textContent).toContain('No legal move for');
+    expect(app.textContent).toContain('Game over');
+    expect(app.textContent).toContain('End state');
+    expect(document.querySelector<HTMLButtonElement>('#sim-roll-btn')?.disabled).toBe(true);
+    expect(document.querySelector<HTMLButtonElement>('#sim-auto-btn')?.disabled).toBe(true);
+
+    click('#sim-reset-btn');
+
+    expect(app.textContent).toContain('Reset: all tiles are standing.');
+    expect(document.querySelector<HTMLButtonElement>('#sim-roll-btn')?.disabled).toBe(false);
+  });
+
   it('starts and pauses simulator auto-play', async () => {
     vi.useFakeTimers();
     const app = await loadApp('/simulator');

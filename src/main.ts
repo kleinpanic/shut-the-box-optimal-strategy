@@ -26,6 +26,7 @@ interface SimulatorState {
   log: string[];
   isRolling: boolean;
   autoplay: boolean;
+  ended: boolean;
 }
 
 interface SimulatorRuntime {
@@ -80,6 +81,7 @@ const simulatorState: SimulatorState = {
   log: ['Ready: roll the dice to watch the advisor choose a legal move.'],
   isRolling: false,
   autoplay: false,
+  ended: false,
 };
 
 const objectiveMeta: Record<Objective, { label: string; shortLabel: string; description: string }> =
@@ -1228,6 +1230,7 @@ function simulatorPage(): string {
   const ranked = simulatorRankedMoves();
   const best = ranked[0] ?? simulatorState.lastMove;
   const score = tileValue(simulatorState.gameState);
+  const terminal = simulatorTerminal();
   return [
     '<main class="simulator-page" aria-label="3D Shut the Box simulator">',
     '<section class="simulator-shell">',
@@ -1269,15 +1272,25 @@ function simulatorPage(): string {
         '.</p></div>'
       : '<div class="sim-best"><span>Strategy correlation</span><p>Roll to generate the next legal strategy step.</p></div>',
     '<div class="sim-controls" aria-label="Simulator controls">',
-    '<button id="sim-roll-btn" class="button button-primary" type="button">' +
-      (simulatorState.isRolling ? 'Rolling...' : 'Roll turn') +
+    '<button id="sim-roll-btn" class="button button-primary" type="button"' +
+      (terminal ? ' disabled aria-disabled="true"' : '') +
+      '>' +
+      (simulatorState.isRolling ? 'Rolling...' : terminal ? 'Game ended' : 'Roll turn') +
       '</button>',
-    '<button id="sim-auto-btn" class="button button-quiet" type="button">' +
+    '<button id="sim-auto-btn" class="button button-quiet" type="button"' +
+      (terminal ? ' disabled aria-disabled="true"' : '') +
+      '>' +
       (simulatorState.autoplay ? 'Pause auto' : 'Auto-play') +
       '</button>',
     '<button id="sim-reset-btn" class="button button-quiet" type="button">Reset</button>',
     '</div>',
-    '<div class="sim-readout"><span>Rules</span><p>Roll, close the best legal tile set, then repeat until the box shuts or no legal move remains.</p></div>',
+    '<div class="sim-readout"><span>' +
+      (terminal ? 'End state' : 'Rules') +
+      '</span><p>' +
+      (terminal
+        ? 'This run is finished. Reset to start another 3D game.'
+        : 'Roll, close the best legal tile set, then repeat until the box shuts or no legal move remains.') +
+      '</p></div>',
     '<ol class="sim-log">' +
       simulatorState.log.map((entry) => '<li>' + entry + '</li>').join('') +
       '</ol>',
@@ -1293,10 +1306,15 @@ function simStat(label: string, value: string): string {
 
 function simulatorOutcomeLabel(ranked: RankedMove[]): string {
   if (simulatorState.gameState === 0) return 'Box shut';
+  if (simulatorState.ended) return 'Game over';
   if (simulatorState.isRolling) return 'Dice in motion';
   if (simulatorState.roll === null) return 'Ready to roll';
   if (ranked[0]) return 'Close ' + moveLabel(ranked[0]);
   return 'No legal move';
+}
+
+function simulatorTerminal(): boolean {
+  return simulatorState.ended || simulatorState.gameState === 0;
 }
 
 function activeSimulatorDp(): DPTables {
@@ -1325,13 +1343,14 @@ function resetSimulator(): void {
   simulatorState.lastMove = null;
   simulatorState.isRolling = false;
   simulatorState.autoplay = false;
+  simulatorState.ended = false;
   simulatorState.log = ['Reset: all tiles are standing.'];
   stopSimulatorTimer();
   render();
 }
 
 function simulatorRollTurn(): void {
-  if (simulatorState.isRolling || simulatorState.gameState === 0) return;
+  if (simulatorState.isRolling || simulatorTerminal()) return;
   const oneDie = simulatorOneDie();
   const dice = randomDiceValues(oneDie);
   const roll = dice[0] + (dice[1] ?? 0);
@@ -1385,13 +1404,15 @@ function finishSimulatorRoll(): void {
       ...simulatorState.log,
     ].slice(0, 7);
     simulatorState.autoplay = false;
+    simulatorState.ended = true;
   }
   if (simulatorState.gameState === 0) {
     simulatorState.log = ['Box shut in 3D. Final score 0.', ...simulatorState.log].slice(0, 7);
     simulatorState.autoplay = false;
+    simulatorState.ended = true;
   }
   render();
-  if (simulatorState.autoplay && simulatorState.gameState !== 0) {
+  if (simulatorState.autoplay && !simulatorTerminal()) {
     simulatorTimer = window.setTimeout(() => simulatorRollTurn(), 650);
   }
 }
@@ -1888,6 +1909,7 @@ function attach(): void {
   document.getElementById('sim-roll-btn')?.addEventListener('click', simulatorRollTurn);
   document.getElementById('sim-reset-btn')?.addEventListener('click', resetSimulator);
   document.getElementById('sim-auto-btn')?.addEventListener('click', () => {
+    if (simulatorTerminal()) return;
     simulatorState.autoplay = !simulatorState.autoplay;
     if (simulatorState.autoplay) simulatorRollTurn();
     else stopSimulatorTimer();
