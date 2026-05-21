@@ -1,5 +1,6 @@
 import './style.css';
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { getRankedMoves, tileValue, diceDistribution } from './engine/index.js';
 import { TWO_DICE_DP, ONE_DICE_DP } from './engine/dp.js';
 import type { DPTables, Objective, RankedMove } from './engine/types.js';
@@ -172,14 +173,33 @@ function rankedMoves(): RankedMove[] {
   return getRankedMoves(state.gameState, state.roll, state.objective, policyAllowsOneDie());
 }
 
+function randomDie(): number {
+  if (usesCryptoRandom()) return randomInt(6) + 1;
+  return Math.ceil(Math.random() * 6);
+}
+
+function usesCryptoRandom(): boolean {
+  return !globalThis.navigator?.userAgent.includes('jsdom') && !!globalThis.crypto?.getRandomValues;
+}
+
+function randomInt(maxExclusive: number): number {
+  const cryptoApi = globalThis.crypto;
+  const limit = Math.floor(0x100000000 / maxExclusive) * maxExclusive;
+  const value = new Uint32Array(1);
+  do {
+    cryptoApi.getRandomValues(value);
+  } while (value[0] >= limit);
+  return value[0] % maxExclusive;
+}
+
 function randomRoll(): number {
-  if (activeOneDie()) return Math.ceil(Math.random() * 6);
-  return Math.ceil(Math.random() * 6) + Math.ceil(Math.random() * 6);
+  if (activeOneDie()) return randomDie();
+  return randomDie() + randomDie();
 }
 
 function randomDiceValues(oneDie: boolean): [number, number | null] {
-  const first = Math.ceil(Math.random() * 6);
-  return oneDie ? [first, null] : [first, Math.ceil(Math.random() * 6)];
+  const first = randomDie();
+  return oneDie ? [first, null] : [first, randomDie()];
 }
 
 function snapshotState(): Snapshot {
@@ -1415,11 +1435,14 @@ function initSimulatorScene(): void {
   }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(mount.clientWidth, mount.clientHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   mount.replaceChildren(renderer.domElement);
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.45));
   const key = new THREE.DirectionalLight(0xffffff, 2.1);
   key.position.set(4.8, 8.5, 5.5);
+  key.castShadow = true;
   scene.add(key);
   const rim = new THREE.PointLight(0x6ee7b7, 1.9, 18);
   rim.position.set(-4.8, 3.2, -3.6);
@@ -1433,6 +1456,7 @@ function initSimulatorScene(): void {
     new THREE.MeshStandardMaterial({ color: 0x4a2919, roughness: 0.78 }),
   );
   table.position.y = -0.25;
+  table.receiveShadow = true;
   scene.add(table);
 
   const felt = new THREE.Mesh(
@@ -1445,6 +1469,7 @@ function initSimulatorScene(): void {
     }),
   );
   felt.position.y = -0.02;
+  felt.receiveShadow = true;
   scene.add(felt);
 
   const railMaterial = new THREE.MeshStandardMaterial({
@@ -1522,21 +1547,54 @@ function initSimulatorScene(): void {
 
 function createSimTile(tile: number, open: boolean): THREE.Group {
   const group = new THREE.Group();
-  const material = new THREE.MeshStandardMaterial({
-    color: open ? 0xf8d77a : 0x244252,
-    emissive: open ? 0x3c2700 : 0x000000,
-    roughness: 0.6,
+  const tileMaterial = new THREE.MeshStandardMaterial({
+    color: open ? 0xc5964d : 0x253849,
+    emissive: open ? 0x1d1205 : 0x02070c,
+    roughness: 0.54,
+    metalness: 0.03,
   });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.68, 1.35, 0.18), material);
+  const edgeMaterial = new THREE.MeshStandardMaterial({
+    color: open ? 0x7a4a24 : 0x12202c,
+    roughness: 0.68,
+  });
+  const body = new THREE.Mesh(new RoundedBoxGeometry(0.68, 1.35, 0.2, 5, 0.035), tileMaterial);
   body.position.y = open ? 0.62 : 0.02;
   body.rotation.x = open ? -0.2 : -Math.PI / 2;
   group.add(body);
 
-  const label = new THREE.Sprite(
-    new THREE.SpriteMaterial({ map: numberTexture(String(tile), open ? '#101820' : '#dce8ef') }),
+  const lowerLip = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.045, 0.035), edgeMaterial);
+  lowerLip.position.set(0, open ? 0.05 : 0.2, open ? 0.1 : 0.64);
+  lowerLip.rotation.x = body.rotation.x;
+  group.add(lowerLip);
+
+  const grooveMaterial = new THREE.MeshBasicMaterial({
+    color: open ? 0x583514 : 0x88a4b8,
+    transparent: true,
+    opacity: open ? 0.44 : 0.28,
+  });
+  [-0.38, 0, 0.38].forEach((offset) => {
+    const groove = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.018, 0.012), grooveMaterial);
+    groove.position.set(0, open ? 0.62 + offset : 0.06, open ? 0.115 : 0.32 + offset * 0.28);
+    groove.rotation.x = body.rotation.x;
+    group.add(groove);
+  });
+
+  const hinge = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.035, 0.035, 0.76, 18),
+    new THREE.MeshStandardMaterial({ color: 0xc7b078, roughness: 0.35, metalness: 0.22 }),
   );
-  label.scale.set(0.42, 0.42, 1);
-  label.position.set(0, open ? 1.05 : 0.15, open ? 0.12 : 0.38);
+  hinge.rotation.z = Math.PI / 2;
+  hinge.position.set(0, open ? 1.33 : 0.12, open ? -0.08 : -0.34);
+  group.add(hinge);
+
+  const label = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: numberTexture(String(tile), open ? '#21323a' : '#dce8ef'),
+      transparent: true,
+    }),
+  );
+  label.scale.set(0.38, 0.38, 1);
+  label.position.set(0, open ? 0.8 : 0.16, open ? 0.125 : 0.42);
   group.add(label);
   group.position.set(-4.55 + (tile - 1) * 0.84, 0, -1.85);
   return group;
@@ -1549,11 +1607,23 @@ function createSimDice(): THREE.Group[] {
       if (value === null) return null;
       const group = new THREE.Group();
       const die = new THREE.Mesh(
-        new THREE.BoxGeometry(0.82, 0.82, 0.82),
-        new THREE.MeshStandardMaterial({ color: 0xf7fafc, roughness: 0.28, metalness: 0.02 }),
+        new RoundedBoxGeometry(0.88, 0.88, 0.88, 8, 0.12),
+        new THREE.MeshPhysicalMaterial({
+          color: 0xf8fafc,
+          roughness: 0.22,
+          metalness: 0.02,
+          clearcoat: 0.55,
+          clearcoatRoughness: 0.28,
+        }),
       );
+      die.castShadow = true;
       group.add(die);
       addDiePips(group);
+      const bevelGlow = new THREE.Mesh(
+        new RoundedBoxGeometry(0.895, 0.895, 0.895, 8, 0.125),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.045 }),
+      );
+      group.add(bevelGlow);
       group.position.set(index === 0 ? -0.8 : 0.8, 0.65, 0.05);
       return group;
     })
@@ -1610,24 +1680,24 @@ function addPipFace(
   const offsets = pipMap[value] ?? pipMap[1];
   const material = new THREE.MeshBasicMaterial({ color: 0x0f172a });
   offsets.forEach(([a, b]) => {
-    const pip = new THREE.Mesh(new THREE.CircleGeometry(0.055, 18), material);
-    const edge = 0.413;
+    const pip = new THREE.Mesh(new THREE.CircleGeometry(0.064, 24), material);
+    const inset = 0.449;
     if (face === 'py') {
-      pip.position.set(a, edge, b);
+      pip.position.set(a, inset, b);
       pip.rotation.x = -Math.PI / 2;
     } else if (face === 'ny') {
-      pip.position.set(a, -edge, b);
+      pip.position.set(a, -inset, b);
       pip.rotation.x = Math.PI / 2;
     } else if (face === 'pz') {
-      pip.position.set(a, b, edge);
+      pip.position.set(a, b, inset);
     } else if (face === 'nz') {
-      pip.position.set(a, b, -edge);
+      pip.position.set(a, b, -inset);
       pip.rotation.y = Math.PI;
     } else if (face === 'px') {
-      pip.position.set(edge, a, b);
+      pip.position.set(inset, a, b);
       pip.rotation.y = Math.PI / 2;
     } else {
-      pip.position.set(-edge, a, b);
+      pip.position.set(-inset, a, b);
       pip.rotation.y = -Math.PI / 2;
     }
     group.add(pip);

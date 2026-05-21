@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const BASE_PATH = '/shut-the-box-optimal-strategy';
 const STORAGE_KEY = 'shut-the-box-optimal-strategy:state:v1';
+const USER_AGENT = window.navigator.userAgent;
 
 async function loadApp(path = '/'): Promise<HTMLElement> {
   vi.resetModules();
@@ -43,6 +44,7 @@ describe('strategy app shell', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    Object.defineProperty(window.navigator, 'userAgent', { value: USER_AGENT, configurable: true });
     document.body.innerHTML = '';
   });
 
@@ -312,6 +314,20 @@ describe('strategy app shell', () => {
 
     expect(document.querySelector<HTMLInputElement>('#dice-input')?.value).toBe('6');
     expect(document.body.textContent).toContain('Close 6');
+  });
+
+  it('uses crypto-backed random dice outside the test browser fallback', async () => {
+    Object.defineProperty(window.navigator, 'userAgent', { value: 'Chrome', configurable: true });
+    const randomSpy = vi.spyOn(globalThis.crypto, 'getRandomValues').mockImplementation((array) => {
+      (array as Uint32Array)[0] = 0;
+      return array;
+    });
+
+    await loadApp();
+    click('#random-roll-btn');
+
+    expect(randomSpy).toHaveBeenCalled();
+    expect(document.querySelector<HTMLInputElement>('#dice-input')?.value).toBe('2');
   });
 
   it('renders the shut-box win state', async () => {
