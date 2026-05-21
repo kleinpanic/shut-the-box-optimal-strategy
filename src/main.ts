@@ -1245,6 +1245,7 @@ function simulatorPage(): string {
     simStat('Score up', String(score)),
     simStat('Roll', simulatorState.roll === null ? '-' : String(simulatorState.roll)),
     simStat('Dice', oneDie ? '1d6' : '2d6'),
+    simStat('Random', usesCryptoRandom() ? 'Crypto d6' : 'Fallback d6'),
     simStat('Best move', best ? moveLabel(best) : '-'),
     simStat('EV', activeSimulatorDp().expectedScore[simulatorState.gameState].toFixed(2)),
     simStat(
@@ -1532,11 +1533,14 @@ function initSimulatorScene(): void {
       if (simulatorState.isRolling) {
         die.rotation.x = elapsed * (5.5 + index);
         die.rotation.y = elapsed * (6.5 + index * 0.7);
+        die.rotation.z = elapsed * (4.8 + index * 0.9);
         die.position.x = (index === 0 ? -0.8 : 0.8) + Math.sin(elapsed * 8 + index) * 0.55;
         die.position.z = -0.1 + Math.cos(elapsed * 7 + index) * 0.45;
       } else {
-        die.rotation.x = index === 0 ? 0.18 : -0.22;
-        die.rotation.y = index === 0 ? 0.45 : -0.5;
+        const finalRotation = dieFinalRotation(Number(die.userData.value));
+        die.rotation.x = finalRotation.x;
+        die.rotation.y = finalRotation.y + (index === 0 ? 0.18 : -0.16);
+        die.rotation.z = finalRotation.z;
       }
     });
     renderer.render(scene, camera);
@@ -1589,12 +1593,12 @@ function createSimTile(tile: number, open: boolean): THREE.Group {
 
   const label = new THREE.Sprite(
     new THREE.SpriteMaterial({
-      map: numberTexture(String(tile), open ? '#21323a' : '#dce8ef'),
+      map: numberTexture(String(tile), open ? '#f8fafc' : '#fde68a'),
       transparent: true,
     }),
   );
-  label.scale.set(0.38, 0.38, 1);
-  label.position.set(0, open ? 0.8 : 0.16, open ? 0.125 : 0.42);
+  label.scale.set(0.5, 0.5, 1);
+  label.position.set(0, open ? 0.79 : 0.16, open ? 0.13 : 0.43);
   group.add(label);
   group.position.set(-4.55 + (tile - 1) * 0.84, 0, -1.85);
   return group;
@@ -1624,10 +1628,23 @@ function createSimDice(): THREE.Group[] {
         new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.045 }),
       );
       group.add(bevelGlow);
+      group.userData.value = value;
       group.position.set(index === 0 ? -0.8 : 0.8, 0.65, 0.05);
       return group;
     })
     .filter((group): group is THREE.Group => group !== null);
+}
+
+function dieFinalRotation(value: number): { x: number; y: number; z: number } {
+  const rotations: Record<number, { x: number; y: number; z: number }> = {
+    1: { x: 0, y: 0, z: 0 },
+    2: { x: -Math.PI / 2, y: 0, z: 0 },
+    3: { x: 0, y: 0, z: Math.PI / 2 },
+    4: { x: 0, y: 0, z: -Math.PI / 2 },
+    5: { x: Math.PI / 2, y: 0, z: 0 },
+    6: { x: Math.PI, y: 0, z: 0 },
+  };
+  return rotations[value] ?? rotations[1];
 }
 
 function addDiePips(group: THREE.Group): void {
@@ -1710,8 +1727,20 @@ function numberTexture(value: string, color: string): THREE.CanvasTexture {
   canvas.height = 128;
   const context = canvas.getContext('2d')!;
   context.clearRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = 'rgba(0, 0, 0, 0.82)';
+  context.beginPath();
+  context.roundRect(18, 20, 92, 88, 14);
+  context.fill();
+  context.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+  context.lineWidth = 4;
+  context.stroke();
+  context.strokeStyle = 'rgba(0, 0, 0, 0.9)';
+  context.lineWidth = 2;
+  context.strokeRect(28, 30, 72, 68);
   context.fillStyle = color;
-  context.font = '700 72px Arial, sans-serif';
+  context.shadowColor = 'rgba(0, 0, 0, 0.85)';
+  context.shadowBlur = 6;
+  context.font = '900 72px Arial, sans-serif';
   context.textAlign = 'center';
   context.textBaseline = 'middle';
   context.fillText(value, 64, 66);

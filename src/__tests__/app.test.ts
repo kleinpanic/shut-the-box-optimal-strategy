@@ -386,6 +386,7 @@ describe('strategy app shell', () => {
     expect(app.textContent).toContain('Live stats');
     expect(app.textContent).toContain('Roll turn');
     expect(app.textContent).toContain('Ready: roll the dice');
+    expect(app.textContent).toContain('RandomFallback d6');
     expect(document.querySelector('#sim-canvas')).not.toBeNull();
     expect(window.location.pathname).toBe(BASE_PATH + '/simulator');
 
