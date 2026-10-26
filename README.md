@@ -66,10 +66,12 @@ Since any legal move `m` satisfies `m ⊆ s` and `m ≠ 0`, we have `s & ~m < s`
 
 ## Local development
 
+Requires Node.js 20.19+ or 22.12+ (CI uses Node 22).
+
 ```bash
 git clone https://github.com/kleinpanic/shut-the-box-optimal-strategy.git
 cd shut-the-box-optimal-strategy
-npm install
+npm ci
 npm run dev        # http://localhost:5173/shut-the-box-optimal-strategy/
 ```
 
@@ -80,7 +82,14 @@ npm test                # run all tests
 npm run test:coverage   # with coverage report
 ```
 
-Tests live in `src/engine/__tests__/engine.test.ts` and cover:
+Run the same checks as CI before opening a PR:
+
+```bash
+npm run lint && npm run format:check && npm run typecheck && npm run deadcode && npm run test:coverage && npm run build
+```
+
+Tests run in jsdom. `src/__tests__/app.test.ts` covers the UI (routing, saved state, roll input, simulator).
+`src/engine/__tests__/engine.test.ts` covers the engine:
 
 - `diceDistribution`: probability sums, spot-checks P(7)=6/36, range validation
 - `enumerateLegalMoves`: empty states, single-tile, multi-subset cases, mask encoding
