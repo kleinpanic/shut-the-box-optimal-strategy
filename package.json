@@ -21,7 +21,7 @@
     "@types/three": "^0.184.1",
     "@typescript-eslint/eslint-plugin": "^8.59.3",
     "@typescript-eslint/parser": "^8.59.3",
-    "@vitest/coverage-v8": "^4.1.6",
+    "@vitest/coverage-v8": "^4.1.12",
     "eslint": "^10.4.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-unused-imports": "^4.4.1",
@@ -29,8 +29,8 @@
     "prettier": "^3.8.3",
     "tailwindcss": "^4.3.0",
     "typescript": "~6.0.2",
-    "vite": "^8.0.12",
-    "vitest": "^4.1.6"
+    "vite": "^8.3.5",
+    "vitest": "^4.1.12"
   },
   "dependencies": {
     "three": "^0.184.0"

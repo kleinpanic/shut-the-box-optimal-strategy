@@ -227,10 +227,10 @@ function isValidSnapshot(value: unknown): value is Snapshot {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Record<string, unknown>;
   return (
-    typeof candidate.gameState === 'number' &&
-    candidate.gameState >= 0 &&
-    candidate.gameState <= FULL_STATE &&
-    (typeof candidate.roll === 'number' || candidate.roll === null) &&
+    Number.isInteger(candidate.gameState) &&
+    (candidate.gameState as number) >= 0 &&
+    (candidate.gameState as number) <= FULL_STATE &&
+    (Number.isInteger(candidate.roll) || candidate.roll === null) &&
     ['minimize_score', 'maximize_shutting', 'maximize_survival'].includes(
       String(candidate.objective),
     ) &&

@@ -281,6 +281,19 @@ describe('strategy app shell', () => {
     expect(app.textContent).toContain('Auto: 2 dice');
   });
 
+  it('ignores saved state with a non-integer board or roll', async () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ gameState: 62.5, roll: 3.5, objective: 'minimize_score', diceMode: 'auto' }),
+    );
+
+    const app = await loadApp();
+
+    expect(app.textContent).not.toContain('NaN');
+    expect(document.querySelector('[data-tile="9"]')?.className).toContain('is-open');
+    expect(app.textContent).toContain('Waiting for roll');
+  });
+
   it('allows manual dice mode overrides when one die is legal', async () => {
     const app = await loadApp();
 
@@ -422,12 +435,13 @@ describe('strategy app shell', () => {
 
   it('removes the second simulator die after tiles 7-9 close', async () => {
     vi.useFakeTimers();
+    // Rolls 7, 8, 9: the minimize-score advisor closes 7, then 8, then 9.
     vi.mocked(Math.random)
-      .mockReturnValueOnce(0.5)
-      .mockReturnValueOnce(0.99)
-      .mockReturnValueOnce(0.34)
-      .mockReturnValueOnce(0.84)
       .mockReturnValueOnce(0.01)
+      .mockReturnValueOnce(0.99)
+      .mockReturnValueOnce(0.2)
+      .mockReturnValueOnce(0.84)
+      .mockReturnValueOnce(0.5)
       .mockReturnValueOnce(0.99);
     const app = await loadApp('/simulator');
 

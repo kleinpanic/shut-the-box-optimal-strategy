@@ -12,8 +12,9 @@ export function getRankedMoves(
   objective: Objective,
   useOneDie: boolean,
 ): RankedMove[] {
-  const activeOneDie = useOneDie && (state & 0x1c0) === 0;
-  const dp = activeOneDie ? ONE_DICE_DP : TWO_DICE_DP;
+  // ONE_DICE_DP already switches to 1d6 per state, so successor states that drop 7–9
+  // must be valued with it even when the current state still has 7–9 open.
+  const dp = useOneDie ? ONE_DICE_DP : TWO_DICE_DP;
   const moves = enumerateLegalMoves(state, roll);
   if (moves.length === 0) return [];
 

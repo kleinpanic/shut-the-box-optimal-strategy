@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { diceDistribution } from '../dice.js';
 import { enumerateLegalMoves, tileValue } from '../moves.js';
-import { computeDPTables, TWO_DICE_DP } from '../dp.js';
+import { computeDPTables, ONE_DICE_DP, TWO_DICE_DP } from '../dp.js';
 import { getRankedMoves } from '../advisor.js';
 
 // ---------------------------------------------------------------------------
@@ -339,6 +339,16 @@ describe('getRankedMoves', () => {
     // Both should return moves; values may differ due to different DP tables
     expect(twoRanked.length).toBeGreaterThan(0);
     expect(oneRanked.length).toBeGreaterThan(0);
+  });
+
+  it('values successors with one-die DP even when the current state still has 7-9 open', () => {
+    // Tiles 3, 4, 7 open, roll 7. Closing 7 leaves {3,4}, which is played with one die.
+    const state = 0b001001100;
+    const ranked = getRankedMoves(state, 7, 'maximize_shutting', true);
+    expect(ranked[0].move.tiles).toEqual([3, 4]);
+    for (const r of ranked) {
+      expect(r.value).toBe(ONE_DICE_DP.shutProbability[state & ~r.move.mask]);
+    }
   });
 });
 
